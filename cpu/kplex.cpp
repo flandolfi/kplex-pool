@@ -136,7 +136,7 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
 }
 
 std::tuple<at::Tensor, at::Tensor, int64_t, int64_t> 
-kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, 
+kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool normalize,
         NodePriority cover_priority, NodePriority kplex_priority) {
     std::tie(row, col) = remove_self_loops(row, col);
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);
@@ -239,17 +239,23 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes,
         cover.push_back(kplex);
     }
 
-    auto index = at::zeros({output_dim, 2}, row.options()), values = at::ones(output_dim, row.options());
+    auto index = at::zeros({2, output_dim}, row.options());
+    auto values = at::ones(output_dim, row.options()).toType(at::ScalarType::Float);
     auto index_acc = index.accessor<int64_t, 2>();
     int64_t size = cover.size();
     auto idx = 0;
 
     for (auto cover_id = 0; cover_id < size; ++cover_id) {
         for (auto node: cover[cover_id]) {
-            index_acc[idx][0] = node;
-            index_acc[idx][1] = cover_id;
+            index_acc[0][idx] = node;
+            index_acc[1][idx] = cover_id;
             ++idx;
         }
+    }
+
+    if (normalize) {
+        auto clusters_per_node = degree(index[0], num_nodes).toType(at::ScalarType::Float);
+        values = 1. / clusters_per_node.index_select(0, index[0]);
     }
 
     return {index, values, num_nodes, size};
