@@ -33,14 +33,14 @@ def test_kplex_cover(test, cover_priority, kplex_priority, device):
     k_max = test['k']
 
     for k in range(1, k_max + 1):
-        index, values, nodes, clusters = kplex_cover(row, col, k, None, cover_priority, kplex_priority)
+        index, values, nodes, clusters = kplex_cover(row, col, k, None, False, cover_priority, kplex_priority)
 
         if k == k_max:
             assert clusters == 1, "Parameters:\n\t" \
                                   "k = %d, k_max = %d, cover_priority = '%s', kplex_priority = '%s'.\n" \
                                   "Observed clustering:\n" \
                                   "%s" % (k, k_max, cover_priority, kplex_priority, index.__repr__())
-            assert index.size(0) == nodes, "Parameters:\n\t" \
+            assert index.size(1) == nodes, "Parameters:\n\t" \
                                            "k = %d, k_max = %d, cover_priority = '%s', kplex_priority = '%s'.\n" \
                                            "Observed clustering:\n" \
                                            "%s" % (k, k_max, cover_priority, kplex_priority, index.__repr__())
