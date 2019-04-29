@@ -28,12 +28,11 @@ tests = [{
 @pytest.mark.parametrize('test,cover_priority,kplex_priority,device',
                          product(tests, cover_priorities, kplex_priorities, devices))
 def test_kplex_cover(test, cover_priority, kplex_priority, device):
-    row = torch.tensor(test['row'], dtype=torch.long, device=device)
-    col = torch.tensor(test['col'], dtype=torch.long, device=device)
+    edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
     k_max = test['k']
 
     for k in range(1, k_max + 1):
-        index, values, nodes, clusters = kplex_cover(row, col, k, None, False, cover_priority, kplex_priority)
+        index, values, nodes, clusters = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
 
         if k == k_max:
             assert clusters == 1, "Parameters:\n\t" \
@@ -50,4 +49,4 @@ def test_kplex_cover(test, cover_priority, kplex_priority, device):
                                  "Observed clustering:\n" \
                                  "%s" % (k, k_max, cover_priority, kplex_priority, index.__repr__())
         
-        assert nodes == row.max().item() + 1
+        assert nodes == edge_index.max().item() + 1
