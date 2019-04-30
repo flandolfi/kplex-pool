@@ -5,7 +5,7 @@ from kplex_pool import kplex_cpu
 def kplex_cover(edge_index, k, num_nodes=None, normalize=True, 
                 cover_priority="min_degree", kplex_priority="max_in_kplex"):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
-    k_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
+    k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
 
     if c_priority is None or c_priority is kplex_cpu.NodePriority.max_in_kplex \
             or c_priority is kplex_cpu.NodePriority.min_in_kplex:
