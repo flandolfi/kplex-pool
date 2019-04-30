@@ -3,13 +3,16 @@ import torch
 from torch.utils.cpp_extension import CppExtension, BuildExtension
 
 ext_modules = [
-    CppExtension('kplex_pool.kplex_cpu', ['cpu/kplex.cpp'], 
-                 extra_compile_args=['-g', '-O0', '-DDEBUG']),
+    CppExtension('kplex_pool.kplex_cpu', [
+                     'cpu/kplex.cpp',
+                     'cpu/comparer.cpp'
+                 ], # extra_compile_args=['-g', '-O0', '-DDEBUG']
+                ),
     CppExtension('kplex_pool.simplify_cpu', [
-                    'cpu/simplify.cpp',
-                    'cpu/disjoint_sets.cpp'
-                ], 
-                 extra_compile_args=['-g', '-O0', '-DDEBUG']),
+                     'cpu/simplify.cpp',
+                     'cpu/disjoint_sets.cpp'
+                 ], # extra_compile_args=['-g', '-O0', '-DDEBUG']
+                ),
 ]
 cmdclass = {'build_ext': BuildExtension}
 

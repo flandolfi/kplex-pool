@@ -1,4 +1,5 @@
 #include <torch/extension.h>
+#include "comparer.hpp"
 
 
 enum class NodePriority { 
@@ -11,11 +12,8 @@ enum class NodePriority {
     MAX_IN_KPLEX 
 };
 
-using Comparator = std::function<bool(const int64_t&, const int64_t&)>;
-
 /* From torch_cluster/cpu/utils.h by @rusty1s */
-std::tuple<at::Tensor, at::Tensor> remove_self_loops(at::Tensor row,
-                                                     at::Tensor col) {
+std::tuple<at::Tensor, at::Tensor> remove_self_loops(at::Tensor row, at::Tensor col) {
     auto mask = row != col;
     return std::make_tuple(row.masked_select(mask), col.masked_select(mask));
 }
@@ -28,34 +26,30 @@ at::Tensor degree(at::Tensor row, int64_t num_nodes) {
 }
 
 std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int64_t>>& neighbors, 
-        int64_t node, int64_t k, int64_t num_nodes, NodePriority kplex_priority, Comparator* comparator = nullptr) {
+        int64_t node, int64_t k, int64_t num_nodes, NodePriority kplex_priority, const Compare& compare) {
     std::unordered_set<int64_t> excluded({node});
     std::unordered_set<int64_t> kplex({node});
     std::unordered_map<int64_t, int64_t> missing_links({{node, 1}});
-    Comparator& cmp = *comparator;
+    Compare cmp = compare;
 
     switch (kplex_priority) {
-    case NodePriority::RANDOM:
-    case NodePriority::MAX_DEGREE:
-    case NodePriority::MIN_DEGREE:
-    case NodePriority::MAX_UNCOVERED:
-    case NodePriority::MIN_UNCOVERED:
-        break;
-
     case NodePriority::MAX_IN_KPLEX:
-        cmp = [&](const int64_t& l, const int64_t& r){ 
-            return missing_links[l] > missing_links[r] || (!(missing_links[l] < missing_links[r]) && l < r); 
+        cmp = [&](const int64_t& l, const int64_t& r) { 
+            return missing_links[l] < missing_links[r] || (!(missing_links[l] > missing_links[r]) && l < r); 
         };
         break;
 
     case NodePriority::MIN_IN_KPLEX:
-        cmp = [&](const int64_t& l, const int64_t& r){ 
-            return missing_links[l] < missing_links[r] || (!(missing_links[l] > missing_links[r]) && l < r); 
+        cmp = [&](const int64_t& l, const int64_t& r) { 
+            return missing_links[l] > missing_links[r] || (!(missing_links[l] < missing_links[r]) && l < r); 
         };
+        break;
+    
+    default:
         break;
     }
 
-    std::set<int64_t, Comparator> candidates(cmp);
+    std::set<int64_t, Compare> candidates(cmp);
 
     for (auto n: neighbors[node]) {
         missing_links[n] = 0;
@@ -143,67 +137,45 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
     auto deegrees = degree(row, num_nodes);
     auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>(), 
         degree_acc = deegrees.accessor<int64_t, 1>();
-    Comparator cover_cmp, *kplex_cmp = nullptr;
-    std::vector<int64_t> priorities(num_nodes);
+    Compare cover_cmp, kplex_cmp; 
+    std::vector<int64_t> random_p(num_nodes), uncovered_p(num_nodes), degree_p(num_nodes);
+    PriorityComparer random_cmp(random_p), degree_cmp(degree_p), uncovered_cmp(uncovered_p);
 
     for (auto i = 0; i < row.size(0); i++) {
         neighbors[row_acc[i]].insert(col_acc[i]);
     }
 
-    switch (cover_priority) {
-    case NodePriority::RANDOM:
-        for (auto i = 0; i < num_nodes; ++i)
-            priorities[i] = i;
-        
-        std::random_shuffle(priorities.begin(), priorities.end());
-        break;
-
-    case NodePriority::MAX_DEGREE:
-    case NodePriority::MIN_DEGREE:
-    case NodePriority::MAX_UNCOVERED:
-    case NodePriority::MIN_UNCOVERED:
-        for (auto i = 0; i < num_nodes; ++i)
-            priorities[i] = degree_acc[i];
-
-        break;
+    for (auto i = 0; i < num_nodes; ++i) {
+        degree_p[i] = degree_acc[i];
+        uncovered_p[i] = degree_acc[i];
+        random_p[i] = i;
+    }
     
-    default:
+    std::random_shuffle(random_p.begin(), random_p.end());
+
+    switch (cover_priority) {
+    case NodePriority::RANDOM: cover_cmp = random_cmp.get_less(); break;
+    case NodePriority::MAX_DEGREE: cover_cmp = degree_cmp.get_greater(); break;
+    case NodePriority::MIN_DEGREE: cover_cmp = degree_cmp.get_less(); break;
+    case NodePriority::MAX_UNCOVERED: cover_cmp = uncovered_cmp.get_greater(); break;
+    case NodePriority::MIN_UNCOVERED: cover_cmp = uncovered_cmp.get_less(); break;
+    
+    default: 
         return {at::Tensor(), at::Tensor(), -1, -1};
     }
 
-    switch (cover_priority) {
-    case NodePriority::RANDOM:
-    case NodePriority::MIN_DEGREE:
-    case NodePriority::MIN_UNCOVERED:
-        cover_cmp = [&](const int64_t& l, const int64_t& r){ 
-            return priorities[l] < priorities[r] || (!(priorities[l] > priorities[r]) && l < r); 
-        };
-        break;
-
-    case NodePriority::MAX_DEGREE:
-    case NodePriority::MAX_UNCOVERED:
-        cover_cmp = [&](const int64_t& l, const int64_t& r){ 
-            return priorities[l] > priorities[r] || (!(priorities[l] < priorities[r]) && l < r); 
-        };
-        break;
-    
-    default:
-        break;
-    }
-
     switch (kplex_priority) {
-    case NodePriority::RANDOM:
-    case NodePriority::MAX_DEGREE:
-    case NodePriority::MIN_DEGREE:
-    case NodePriority::MAX_UNCOVERED:
-    case NodePriority::MIN_UNCOVERED:
-        kplex_cmp = &cover_cmp;
+    case NodePriority::RANDOM: kplex_cmp = random_cmp.get_less(); break;
+    case NodePriority::MAX_DEGREE: kplex_cmp = degree_cmp.get_greater(); break;
+    case NodePriority::MIN_DEGREE: kplex_cmp = degree_cmp.get_less(); break;
+    case NodePriority::MAX_UNCOVERED: kplex_cmp = uncovered_cmp.get_greater(); break;
+    case NodePriority::MIN_UNCOVERED: kplex_cmp = uncovered_cmp.get_less(); break;
 
     default:
         break;
     }
 
-    std::set<int64_t, Comparator> candidates(cover_cmp);
+    std::set<int64_t, Compare> candidates(cover_cmp);
     std::vector<std::unordered_set<int64_t>> cover;
     std::unordered_set<int64_t> covered_nodes;
     int64_t output_dim = 0;
@@ -227,7 +199,7 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
                 for (auto cousin: neighbors[node]) {
                     if (candidates.count(cousin) > 0) {
                         candidates.erase(cousin);
-                        priorities[cousin] -= 1;
+                        uncovered_p[cousin] -= 1;
                         candidates.insert(cousin);
                     }
                 }
