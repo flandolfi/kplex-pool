@@ -2,17 +2,15 @@ from setuptools import setup, find_packages
 import torch
 from torch.utils.cpp_extension import CppExtension, BuildExtension
 
+extra_compile_args = []
+# extra_compile_args = ['-g', '-O0', '-DDEBUG']
+
 ext_modules = [
-    CppExtension('kplex_pool.kplex_cpu', [
-                     'cpu/kplex.cpp',
-                     'cpu/comparer.cpp'
-                 ], # extra_compile_args=['-g', '-O0', '-DDEBUG']
-                ),
+    CppExtension('kplex_pool.kplex_cpu', ['cpu/kplex.cpp'], extra_compile_args=extra_compile_args),
     CppExtension('kplex_pool.simplify_cpu', [
                      'cpu/simplify.cpp',
                      'cpu/disjoint_sets.cpp'
-                 ], # extra_compile_args=['-g', '-O0', '-DDEBUG']
-                ),
+                 ], extra_compile_args=extra_compile_args),
 ]
 cmdclass = {'build_ext': BuildExtension}
 

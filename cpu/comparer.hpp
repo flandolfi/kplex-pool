@@ -6,14 +6,25 @@
 
 using Compare = std::function<bool(const int64_t&, const int64_t&)>;
 
+template<typename T>
 class PriorityComparer {
 private:
-    std::vector<int64_t>& priority;
+    T& priority;
 
 public:
-    PriorityComparer(std::vector<int64_t>& priority);
-    Compare get_greater();
-    Compare get_less();
+    PriorityComparer(T& priority) : priority(priority) {};
+    
+    Compare get_greater() {
+        return [this](const int64_t lhs, const int64_t& rhs) {
+            return this->priority[lhs] > this->priority[rhs] || (!(this->priority[lhs] < this->priority[rhs]) && lhs < rhs);
+        };
+    }
+
+    Compare get_less() {
+        return [this](const int64_t lhs, const int64_t& rhs) {
+            return this->priority[lhs] < this->priority[rhs] || (!(this->priority[lhs] > this->priority[rhs]) && lhs < rhs);
+        };
+    }
 };
 
 #endif  // __COMPARER_HPP__
