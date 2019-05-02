@@ -1,6 +1,5 @@
 import torch
 import torch_sparse
-import torch_scatter
 
 
 def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None, num_nodes=None, num_clusters=None, batch=None):
@@ -29,7 +28,7 @@ def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None,
     
     batch_index = batch.index_select(0, cover_index[0])
     out_batch = edge_index.new_zeros(num_clusters)
-    out_batch, _ = torch_scatter.scatter_max(batch_index, cover_index[1], out=out_batch)
+    out_batch = out_batch.scatter(0, cover_index[1], batch_index)
 
     return out, out_adj_index, out_adj_weights, out_batch
     
