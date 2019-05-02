@@ -58,7 +58,7 @@ def test_simplify_batch(device):
         gs.append(Data(edge_index=edge_index, edge_attr=weight))
     
     batch = Batch.from_data_list(gs)
-    index, weight = simplify(batch.edge_index, batch.edge_attr, batch=batch.batch)
+    index, weight = simplify(batch.edge_index, batch.edge_attr)
 
     assert weight.size(0) == index.size(1)
 

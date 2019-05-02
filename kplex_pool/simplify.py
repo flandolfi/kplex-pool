@@ -1,24 +1,21 @@
 import torch
-from kplex_pool import simplify_cpu
+from kplex_pool import simplify_cpu, cc_cpu
 
 
-def simplify(edge_index, weights, keep_max=True, num_nodes=None, batch=None):
+def simplify(edge_index, weights, keep_max=True, num_nodes=None):
     row, col = edge_index    
 
     if num_nodes is None:
         num_nodes = max(row.max().item(), col.max().item()) + 1
 
-    if batch is None:
-        batch = row.new_zeros(num_nodes)
-        batch_size = 1
-    else:
-        batch_size = batch.max().item() + 1
+    sub_graphs = cc_cpu.connected_components(row, col, num_nodes)
+    num_graphs = sub_graphs.max().item() + 1
     
     out_edges = []
     out_weights = []
 
-    for b in range(batch_size):
-        node_mask = batch == b
+    for b in range(num_graphs):
+        node_mask = sub_graphs == b
         edge_mask = node_mask.index_select(0, row)
         r = row.masked_select(edge_mask)
         c = col.masked_select(edge_mask)
