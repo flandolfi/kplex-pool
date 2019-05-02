@@ -18,13 +18,6 @@ std::tuple<at::Tensor, at::Tensor> remove_self_loops(at::Tensor row, at::Tensor 
     return std::make_tuple(row.masked_select(mask), col.masked_select(mask));
 }
 
-/* From torch_cluster/cpu/utils.h by @rusty1s */
-at::Tensor degree(at::Tensor row, int64_t num_nodes) {
-    auto zero = at::zeros(num_nodes, row.options());
-    auto one = at::ones(row.size(0), row.options());
-    return zero.scatter_add_(0, row, one);
-}
-
 std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int64_t>>& neighbors, 
         int64_t node, int64_t k, int64_t num_nodes, NodePriority kplex_priority, const Compare& compare) {
     std::unordered_set<int64_t> excluded({node});
@@ -131,9 +124,7 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
         NodePriority cover_priority, NodePriority kplex_priority) {
     std::tie(row, col) = remove_self_loops(row, col);
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);
-    auto deegrees = degree(row, num_nodes);
-    auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>(), 
-        degree_acc = deegrees.accessor<int64_t, 1>();
+    auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>();
     Compare cover_cmp, kplex_cmp; 
     std::vector<int64_t> random_p(num_nodes), uncovered_p(num_nodes), degree_p(num_nodes);
     PriorityComparer<std::vector<int64_t>> random_cmp(random_p), degree_cmp(degree_p), uncovered_cmp(uncovered_p);
@@ -143,8 +134,7 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
     }
 
     for (auto i = 0; i < num_nodes; ++i) {
-        degree_p[i] = degree_acc[i];
-        uncovered_p[i] = degree_acc[i];
+        uncovered_p[i] = degree_p[i] = (int64_t) neighbors[i].size();
         random_p[i] = i;
     }
     
@@ -239,6 +229,8 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
     auto index = at::zeros({2, output_dim}, row.options());
     auto values = at::ones(output_dim, row.options()).toType(at::ScalarType::Float);
     auto index_acc = index.accessor<int64_t, 2>();
+    auto insances = at::zeros(output_dim, row.options());
+    auto insances_acc = insances.accessor<int64_t, 1>();
     int64_t size = cover.size();
     auto idx = 0;
 
@@ -246,13 +238,14 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
         for (auto node: cover[cover_id]) {
             index_acc[0][idx] = node;
             index_acc[1][idx] = cover_id;
+            insances_acc[node] += 1;
             ++idx;
         }
     }
 
     if (normalize) {
-        auto clusters_per_node = degree(index[0], num_nodes).toType(at::ScalarType::Float);
-        values = 1. / clusters_per_node.index_select(0, index[0]);
+        insances = 1. / insances.toType(at::ScalarType::Float);
+        values = insances.index_select(0, index[0]);
     }
 
     return {index, values, num_nodes, size};
