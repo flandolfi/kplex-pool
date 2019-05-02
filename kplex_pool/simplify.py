@@ -3,7 +3,7 @@ from kplex_pool import simplify_cpu, cc_cpu
 
 
 def simplify(edge_index, weights, keep_max=True, num_nodes=None):
-    was_cuda = edge_index.is_cuda or weights.is_cuda
+    device = edge_index.device
     row, col = edge_index.cpu()
     weights = weights.cpu()
 
@@ -32,10 +32,4 @@ def simplify(edge_index, weights, keep_max=True, num_nodes=None):
         out_edges.append(torch.stack([r, c], dim=0).add(min_index))
         out_weights.append(w)
     
-    out_edges = torch.cat(out_edges, dim=1)
-    out_weights = torch.cat(out_weights, dim=0)
-
-    if was_cuda:
-        return out_edges.cuda(), out_weights.cuda()
-    
-    return out_edges, out_weights
+    return torch.cat(out_edges, dim=1).to(device), torch.cat(out_weights, dim=0).to(device)

@@ -57,7 +57,7 @@ def test_simplify_batch(device):
         weight =  torch.tensor(test['weight'], dtype=torch.float, device=device)
         gs.append(Data(edge_index=edge_index, edge_attr=weight))
     
-    batch = Batch.from_data_list(gs)
+    batch = Batch.from_data_list(gs).to(device)
     index, weight = simplify(batch.edge_index, batch.edge_attr)
 
     assert weight.size(0) == index.size(1)

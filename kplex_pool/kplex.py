@@ -14,7 +14,7 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
     if k_priority is None:
         raise ValueError('Not a valid priority: %s' % kplex_priority)
 
-    was_cuda = edge_index.is_cuda
+    device = edge_index.device
     row, col = edge_index.cpu()
 
     if num_nodes is None:
@@ -22,10 +22,7 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
 
     index, values, nodes, clusters = kplex_cpu.kplex_cover(row, col, k, num_nodes, normalize, c_priority, k_priority)
 
-    if was_cuda:
-        return index.cuda(), values.cuda(), nodes, clusters
-    
-    return index, values, nodes, clusters
+    return index.to(device), values.to(device), nodes, clusters
 
 
 
