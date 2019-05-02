@@ -27,9 +27,10 @@ def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None,
     out_adj_index, out_adj_weights = torch_sparse.spspmm(out_adj_index, 
         out_adj_weights, cover_index, cover_values, num_clusters, num_nodes, num_clusters)
     
-    batch = batch.index_select(0, cover_index[0])
-    batch, _ = torch_scatter.scatter_max(batch, cover_index[1], dim_size=num_clusters)
+    batch_index = batch.index_select(0, cover_index[0])
+    out_batch = edge_index.new_zeros(num_clusters)
+    out_batch, _ = torch_scatter.scatter_max(batch_index, cover_index[1], out=out_batch)
 
-    return out, out_adj_index, out_adj_weights, batch
+    return out, out_adj_index, out_adj_weights, out_batch
     
 
