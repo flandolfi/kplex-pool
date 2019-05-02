@@ -36,15 +36,23 @@ def test_cover_pool(test, cover_priority, kplex_priority, device):
         index, values, nodes, clusters = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
-        x, idx, w = cover_pool(x, edge_index, index, cover_values=values)
+        x, idx, w, batch = cover_pool(x, edge_index, index, cover_values=values)
 
         assert x.size(0) == clusters
         assert (x > k).sum().item() == clusters  # Every cluster contains at least k nodes
+        assert batch.size(0) == clusters
 
+        if k == k_max:
+            assert x.size(0) == 1
+        
         index, values, nodes, clusters = kplex_cover(edge_index, k, None, True, cover_priority, kplex_priority)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
-        x, idx, w = cover_pool(x, edge_index, index, cover_values=values)
+        x, idx, w, batch = cover_pool(x, edge_index, index, cover_values=values)
 
         assert x.size(0) == clusters
         assert x.sum().item() == nodes  # Test Normalization
+        assert batch.size(0) == clusters
+
+        if k == k_max:
+            assert x.size(0) == 1
