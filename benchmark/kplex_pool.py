@@ -60,12 +60,13 @@ class KPlexPool(torch.nn.Module):
         x = F.relu(self.in_block(x, edge_index))
         xs = [global_mean_pool(x, batch)]
 
-        for embed in self.blocks:
+        for embed in self.blocks:            
             if self.simplify == 'pre':
                 edge_index, weights = simplify(edge_index, weights)
 
             c_idx, c_val, nodes, clusters = kplex_cover(edge_index, self.k, nodes)
             x, edge_index, weights, batch = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters, batch)
+            nodes = clusters
 
             if self.simplify == 'post':
                 edge_index, weights = simplify(edge_index, weights)
