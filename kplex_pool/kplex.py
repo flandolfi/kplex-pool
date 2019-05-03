@@ -23,7 +23,7 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
     if batch is None:
         batch = edge_index.new_zeros(num_nodes)
 
-    index, values, nodes, clusters, batch = kplex_cpu.kplex_cover(row, col, k, num_nodes, normalize, c_priority, k_priority, batch)
+    index, values, nodes, clusters, batch = kplex_cpu.kplex_cover(row, col, k, num_nodes, normalize, c_priority, k_priority, batch.cpu())
 
     return index.to(device), values.to(device), nodes, clusters, batch.to(device)
 
