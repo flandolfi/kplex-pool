@@ -3,7 +3,7 @@ from kplex_pool import kplex_cpu
 
 
 def kplex_cover(edge_index, k, num_nodes=None, normalize=True, 
-                cover_priority="min_degree", kplex_priority="max_in_kplex"):
+                cover_priority="min_degree", kplex_priority="max_in_kplex", batch=None):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
     k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
 
@@ -20,9 +20,12 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
     if num_nodes is None:
         num_nodes = max(row.max().item(), col.max().item()) + 1
 
-    index, values, nodes, clusters = kplex_cpu.kplex_cover(row, col, k, num_nodes, normalize, c_priority, k_priority)
+    if batch is None:
+        batch = edge_index.new_zeros(num_nodes)
 
-    return index.to(device), values.to(device), nodes, clusters
+    index, values, nodes, clusters, batch = kplex_cpu.kplex_cover(row, col, k, num_nodes, normalize, c_priority, k_priority, batch)
+
+    return index.to(device), values.to(device), nodes, clusters, batch.to(device)
 
 
 

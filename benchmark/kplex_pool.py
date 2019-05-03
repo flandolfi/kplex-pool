@@ -64,8 +64,8 @@ class KPlexPool(torch.nn.Module):
             if self.simplify == 'pre':
                 edge_index, weights = simplify(edge_index, weights)
 
-            c_idx, c_val, nodes, clusters = kplex_cover(edge_index, self.k, nodes)
-            x, edge_index, weights, batch = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters, batch)
+            c_idx, c_val, nodes, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
+            x, edge_index, weights = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters)
             nodes = clusters
 
             if self.simplify == 'post':

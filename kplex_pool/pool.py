@@ -2,7 +2,7 @@ import torch
 import torch_sparse
 
 
-def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None, num_nodes=None, num_clusters=None, batch=None):
+def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None, num_nodes=None, num_clusters=None):
     if num_nodes is None:
         num_nodes = x.size(0)
     
@@ -15,9 +15,6 @@ def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None,
     if cover_values is None:
         cover_values = torch.ones(cover_index[0].size(0), dtype=torch.float, device=cover_index.device)
 
-    if batch is None:
-        batch = edge_index.new_zeros(x.size(0))
-
     index_t, values_t = torch_sparse.transpose(cover_index, cover_values, num_nodes, num_clusters)
 
     out = torch_sparse.spmm(index_t, values_t, num_clusters, x)
@@ -25,11 +22,7 @@ def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None,
         edge_index, edge_weights, num_clusters, num_nodes, num_nodes)
     out_adj_index, out_adj_weights = torch_sparse.spspmm(out_adj_index, 
         out_adj_weights, cover_index, cover_values, num_clusters, num_nodes, num_clusters)
-    
-    batch_index = batch.index_select(0, cover_index[0])
-    out_batch = edge_index.new_zeros(num_clusters)
-    out_batch = out_batch.scatter(0, cover_index[1], batch_index)
 
-    return out, out_adj_index, out_adj_weights, out_batch
+    return out, out_adj_index, out_adj_weights
     
 

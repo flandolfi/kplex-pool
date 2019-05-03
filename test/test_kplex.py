@@ -32,7 +32,7 @@ def test_kplex_cover(test, cover_priority, kplex_priority, device):
     k_max = test['k']
 
     for k in range(1, k_max + 1):
-        index, values, nodes, clusters = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
+        index, values, nodes, clusters, batch = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
 
         if k == k_max:
             assert clusters == 1, "Parameters:\n\t" \
@@ -50,3 +50,4 @@ def test_kplex_cover(test, cover_priority, kplex_priority, device):
                                  "%s" % (k, k_max, cover_priority, kplex_priority, index.__repr__())
         
         assert nodes == edge_index.max().item() + 1
+        assert batch.size(0) == clusters
