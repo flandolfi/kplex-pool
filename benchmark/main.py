@@ -13,10 +13,11 @@ from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=100)
-parser.add_argument('--batch_size', type=int, default=128)
+parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--lr', type=float, default=0.01)
 parser.add_argument('--lr_decay_factor', type=float, default=0.5)
 parser.add_argument('--lr_decay_step_size', type=int, default=50)
+parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 
 layers = [2, 3, 4, 5]
@@ -33,13 +34,11 @@ nets = [
     KPlexPoolPost
 ]
 
-
 def logger(info):
     fold, epoch = info['fold'] + 1, info['epoch']
     val_loss, test_acc = info['val_loss'], info['test_acc']
     print('{:02d}/{:03d}: Val Loss: {:.4f}, Test Accuracy: {:.3f}'.format(
         fold, epoch, val_loss, test_acc))
-
 
 results = []
 for dataset_name, Net in product(datasets, nets):
@@ -61,7 +60,7 @@ for dataset_name, Net in product(datasets, nets):
                     lr_decay_factor=args.lr_decay_factor,
                     lr_decay_step_size=args.lr_decay_step_size,
                     weight_decay=0,
-                    logger=None)
+                    logger=logger if args.verbose else None)
                 if loss < best_result[0]:
                     best_result = (loss, acc, std)
 
@@ -85,7 +84,7 @@ for dataset_name, Net in product(datasets, nets):
                 lr_decay_factor=args.lr_decay_factor,
                 lr_decay_step_size=args.lr_decay_step_size,
                 weight_decay=0,
-                logger=None)
+                logger=logger if args.verbose else None)
             if loss < best_result[0]:
                 best_result = (loss, acc, std)
 
