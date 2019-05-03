@@ -72,6 +72,7 @@ def test_cover_pool_batch(cover_priority, kplex_priority, device):
     gs = []
     ccs = 0
     k = 0
+    features = 16
 
     for test in tests:
         edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
@@ -80,11 +81,12 @@ def test_cover_pool_batch(cover_priority, kplex_priority, device):
         k = max(k, test['k'])
     
     data = Batch.from_data_list(gs).to(device)
-    x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=device)
+    x = torch.ones((data.num_nodes, features), dtype=torch.float, device=device)
     index, values, nodes, clusters = kplex_cover(data.edge_index, k, None, False, cover_priority, kplex_priority)
     x, idx, w, batch = cover_pool(x, data.edge_index, index, cover_values=values, batch=data.batch)
 
     assert batch.max().item() + 1 == len(tests)
     assert batch.size(0) == ccs
+    assert x.size(1) == features
     assert x.size(0) == ccs
     
