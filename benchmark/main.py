@@ -23,7 +23,7 @@ args = parser.parse_args()
 layers = [2, 3, 4, 5]
 hiddens = [16, 32, 64, 128]
 ks = [4, 16, 64]
-datasets = ['MUTAG', 'PROTEINS', 'IMDB-BINARY', 'REDDIT-BINARY']  # , 'COLLAB']
+datasets = ['ENZYMES', 'DD', 'REDDIT-BINARY', 'COLLAB', 'PROTEINS'] #, 'IMDB-BINARY'
 nets = [
     # TopK,
     # DiffPool,
