@@ -31,10 +31,11 @@ class Block(torch.nn.Module):
 
 
 class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, k, simplify=None):
+    def __init__(self, dataset, num_layers, hidden, k, simplify=None, keep_edges=False):
         super(KPlexPool, self).__init__()
         self.k = k
         self.simplify = simplify
+        self.keep_edges = keep_edges
 
         self.in_block = Block(dataset.num_features, hidden, hidden)
         self.blocks = torch.nn.ModuleList()
@@ -57,20 +58,27 @@ class KPlexPool(torch.nn.Module):
     def forward(self, data):
         x, edge_index, weights, nodes, batch = data.x, data.edge_index, data.edge_attr, data.num_nodes, data.batch
 
+        if weights is None:
+            weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
+
         batch_size = batch[-1].item() + 1
         x = F.relu(self.in_block(x, edge_index))
         xs = [global_mean_pool(x, batch)]
 
         for embed in self.blocks:            
             if self.simplify == 'pre':
+                old_edges, old_weights = edge_index, weights
                 edge_index, weights = simplify(edge_index, weights)
 
             c_idx, c_val, nodes, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
-            x, edge_index, weights = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters)
-            nodes = clusters
 
             if self.simplify == 'post':
                 edge_index, weights = simplify(edge_index, weights)
+            elif self.simplify == 'pre' and self.keep_edges:
+                edge_index, weights = old_edges, old_weights
+
+            x, edge_index, weights = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters)
+            nodes = clusters
 
             x = F.relu(embed(x, edge_index))
             x_pooled = global_mean_pool(x, batch, batch_size)
@@ -91,6 +99,9 @@ class KPlexPoolPre(KPlexPool):
     def __init__(self, k, dataset, num_layers, hidden):
         super(KPlexPoolPre, self).__init__(k, dataset, num_layers, hidden, 'pre')
 
+class KPlexPoolPreKOE(KPlexPool):
+    def __init__(self, k, dataset, num_layers, hidden):
+        super(KPlexPoolPreKOE, self).__init__(k, dataset, num_layers, hidden, 'pre', True)
 
 class KPlexPoolPost(KPlexPool):
     def __init__(self, k, dataset, num_layers, hidden):

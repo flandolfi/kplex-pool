@@ -9,7 +9,7 @@ from kernel.diff_pool import DiffPool
 from kernel.set2set import Set2SetNet
 from kernel.sort_pool import SortPool
 
-from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost
+from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost, KPlexPoolPreKOE
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=100)
@@ -31,6 +31,7 @@ nets = [
     # SortPool,
     KPlexPool, 
     KPlexPoolPre, 
+    KPlexPoolPreKOE, 
     KPlexPoolPost
 ]
 
