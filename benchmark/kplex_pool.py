@@ -56,7 +56,8 @@ class KPlexPool(torch.nn.Module):
 
     def forward(self, data):
         x, edge_index, weights, nodes, batch = data.x, data.edge_index, data.edge_attr, data.num_nodes, data.batch
-        batch_size = batch.max().item() + 1
+
+        batch_size = batch[-1].item() + 1
         x = F.relu(self.in_block(x, edge_index))
         xs = [global_mean_pool(x, batch)]
 
