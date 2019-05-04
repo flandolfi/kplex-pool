@@ -6,8 +6,8 @@ def simplify(edge_index, weights, keep_max=True, num_nodes=None):
     if num_nodes is None:
         num_nodes = edge_index.max().item() + 1
 
-    node_index = torch.arange(0, num_nodes, dtype=torch.long)
     device = edge_index.device
+    node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
     row, col = edge_index
 
     sub_graphs = cc_cpu.connected_components(row.cpu(), col.cpu(), num_nodes).to(device)
