@@ -119,9 +119,9 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
     return kplex;
 }
 
-std::tuple<at::Tensor, at::Tensor, int64_t, int64_t, at::Tensor> 
+std::tuple<at::Tensor, at::Tensor, int64_t, int64_t> 
 kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool normalize,
-        NodePriority cover_priority, NodePriority kplex_priority, at::Tensor batch) {
+        NodePriority cover_priority, NodePriority kplex_priority) {
     std::tie(row, col) = remove_self_loops(row, col);
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);
     auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>();
@@ -162,7 +162,7 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
         break;
     
     default: 
-        return {at::Tensor(), at::Tensor(), -1, -1, at::Tensor()};
+        return {at::Tensor(), at::Tensor(), -1, -1};
     }
 
     switch (kplex_priority) {
@@ -229,9 +229,6 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
     int64_t size = cover.size();
     auto index = at::zeros({2, output_dim}, row.options());
     auto values = at::ones(output_dim, row.options()).toType(at::ScalarType::Float);
-    auto out_batch = at::zeros(size, batch.options());
-    auto batch_acc = batch.accessor<int64_t, 1>();
-    auto out_batch_acc = out_batch.accessor<int64_t, 1>();
     auto index_acc = index.accessor<int64_t, 2>();
     auto insances = at::zeros(output_dim, row.options());
     auto insances_acc = insances.accessor<int64_t, 1>();
@@ -242,7 +239,6 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
             index_acc[0][idx] = node;
             index_acc[1][idx] = cover_id;
             insances_acc[node] += 1;
-            out_batch_acc[cover_id] = batch_acc[node];
             ++idx;
         }
     }
@@ -252,7 +248,7 @@ kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes, bool n
         values = insances.index_select(0, index[0]);
     }
 
-    return {index, values, num_nodes, size, out_batch};
+    return {index, values, num_nodes, size};
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

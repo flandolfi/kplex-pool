@@ -18,10 +18,10 @@ def cover_pool(x, edge_index, cover_index, edge_weights=None, cover_values=None,
     index_t, values_t = torch_sparse.transpose(cover_index, cover_values, num_nodes, num_clusters)
 
     out = torch_sparse.spmm(index_t, values_t, num_clusters, x)
-    out_adj_index, out_adj_weights = torch_sparse.spspmm(index_t, values_t, 
-        edge_index, edge_weights, num_clusters, num_nodes, num_nodes)
-    out_adj_index, out_adj_weights = torch_sparse.spspmm(out_adj_index, 
-        out_adj_weights, cover_index, cover_values, num_clusters, num_nodes, num_clusters)
+    out_adj_index, out_adj_weights = torch_sparse.spspmm(index_t, values_t, edge_index, edge_weights, num_clusters,
+                                                         num_nodes, num_nodes)
+    out_adj_index, out_adj_weights = torch_sparse.spspmm(out_adj_index, out_adj_weights, cover_index, cover_values,
+                                                         num_clusters, num_nodes, num_clusters)
 
     return out, out_adj_index, out_adj_weights
     

@@ -1,6 +1,5 @@
 import pytest
 import torch
-import torch_sparse
 from itertools import product
 from kplex_pool import kplex_cover
 from kplex_pool.kplex_cpu import NodePriority
