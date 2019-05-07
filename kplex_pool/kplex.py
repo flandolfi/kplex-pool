@@ -2,8 +2,8 @@ import torch
 from kplex_pool import kplex_cpu
 
 
-def kplex_cover(edge_index, k, num_nodes=None, normalize=True, 
-                cover_priority="min_degree", kplex_priority="max_in_kplex", batch=None):
+def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree", 
+                kplex_priority="max_in_kplex", batch=None):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
     k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
     device = edge_index.device
@@ -24,7 +24,6 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
     node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
     batch_size = batch[-1].item() + 1
     out_index = []
-    out_value = []
     out_batch = []
     out_clusters = 0
 
@@ -37,22 +36,20 @@ def kplex_cover(edge_index, k, num_nodes=None, normalize=True,
         r = r.masked_select(edge_mask).cpu()
         c = c.masked_select(edge_mask).cpu()
 
-        index, values, _, clusters = kplex_cpu.kplex_cover(r, c, k, 
-                                                           batch_nodes[-1].item() - min_index + 1, 
-                                                           normalize, 
-                                                           c_priority, 
-                                                           k_priority)
+        index = kplex_cpu.kplex_cover(r, c, k, 
+                                      batch_nodes[-1].item() - min_index + 1, 
+                                      c_priority, 
+                                      k_priority)
 
+        clusters = index[1].max().item() + 1
         index[0].add_(min_index)
         index[1].add_(out_clusters)
         
         out_index.append(index.to(device))
-        out_value.append(values.to(device))
         out_batch.append(batch.new_ones(clusters).mul_(b))
         out_clusters += clusters
 
-    return torch.cat(out_index, dim=1), torch.cat(out_value, dim=0), \
-           num_nodes, out_clusters, torch.cat(out_batch, dim=0)
+    return torch.cat(out_index, dim=1), out_clusters, torch.cat(out_batch, dim=0)
 
 
 
