@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.nn import Linear
 from torch_geometric.nn import SAGEConv, global_mean_pool
 
-from kplex_pool import kplex_cover, cover_pool, simplify
+from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
 class Block(torch.nn.Module):
@@ -56,36 +56,32 @@ class KPlexPool(torch.nn.Module):
         self.lin2.reset_parameters()
 
     def forward(self, data):
-        x, edge_index, weights, nodes, batch = data.x, data.edge_index, data.edge_attr, data.num_nodes, data.batch
+        x, edge_index, nodes, batch = data.x, data.edge_index, data.num_nodes, data.batch
 
-        if weights is None:
-            weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
+        weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
 
         batch_size = batch[-1].item() + 1
         x = F.relu(self.in_block(x, edge_index))
-        xs = [global_mean_pool(x, batch)]
 
         for embed in self.blocks:            
             if self.simplify == 'pre':
                 old_edges, old_weights = edge_index, weights
                 edge_index, weights = simplify(edge_index, weights)
 
-            c_idx, c_val, nodes, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
+            c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
 
             if self.simplify == 'post':
                 edge_index, weights = simplify(edge_index, weights)
             elif self.simplify == 'pre' and self.keep_edges:
                 edge_index, weights = old_edges, old_weights
 
-            x, edge_index, weights = cover_pool(x, edge_index, c_idx, weights, c_val, nodes, clusters)
+            x = cover_pool_node(c_idx, x, clusters, pool='mean')
+            edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
             nodes = clusters
 
             x = F.relu(embed(x, edge_index))
-            x_pooled = global_mean_pool(x, batch, batch_size)
-            xs.append(x_pooled)
 
-        x = torch.cat(xs, dim=1)
-        x = F.relu(self.lin1(x))
+        x = global_mean_pool(x, batch, batch_size)
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.lin2(x)
 
