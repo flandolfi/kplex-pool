@@ -29,9 +29,10 @@ tests = [{
 def test_kplex_cover(test, cover_priority, kplex_priority, device):
     edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
     k_max = test['k']
+    nodes = edge_index.max().item() + 1
 
     for k in range(1, k_max + 1):
-        index, values, nodes, clusters, batch = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
 
         if k == k_max:
             assert clusters == 1, "Parameters:\n\t" \

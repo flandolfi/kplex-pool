@@ -54,8 +54,10 @@ def test_simplify_batch(device):
 
     for test in tests:
         edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
-        weight =  torch.tensor(test['weight'], dtype=torch.float, device=device)
-        gs.append(Data(edge_index=edge_index, edge_attr=weight))
+        weight = torch.tensor(test['weight'], dtype=torch.float, device=device)
+        graph = Data(edge_index=edge_index, edge_attr=weight)
+        graph.num_nodes = edge_index.max().item() + 1
+        gs.append(graph)
     
     batch = Batch.from_data_list(gs).to(device)
     index, weight = simplify(batch.edge_index, batch.edge_attr)

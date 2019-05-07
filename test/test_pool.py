@@ -3,7 +3,7 @@ import torch
 import torch_sparse
 from itertools import product
 from kplex_pool import kplex_cover
-from kplex_pool import cover_pool
+from kplex_pool import cover_pool_edge, cover_pool_node
 from kplex_pool.kplex_cpu import NodePriority
 from torch_geometric.data import Data, Batch
 
@@ -39,12 +39,13 @@ tests = [{
 def test_cover_pool(test, cover_priority, kplex_priority, device):
     edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
     k_max = test['k']
+    nodes = edge_index.max().item() + 1
 
     for k in range(1, k_max + 1):
-        index, values, nodes, clusters, batch = kplex_cover(edge_index, k, None, False, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
-        x, idx, w = cover_pool(x, edge_index, index, cover_values=values)
+        x = cover_pool_node(index, x, clusters, pool='add')
 
         assert x.size(0) == clusters
         assert (x > k).sum().item() == clusters  # Every cluster contains at least k nodes
@@ -53,17 +54,27 @@ def test_cover_pool(test, cover_priority, kplex_priority, device):
         if k == k_max:
             assert x.size(0) == test['cc']
         
-        index, values, nodes, clusters, batch = kplex_cover(edge_index, k, None, True, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
-        x, idx, w = cover_pool(x, edge_index, index, cover_values=values)
+        x = cover_pool_node(index, x, clusters, pool='mean')
 
         assert x.size(0) == clusters
-        assert x.sum().item() == nodes  # Test Normalization
+        assert x.sum().item() == clusters  # Test Normalization
         assert batch.size(0) == clusters
 
         if k == k_max:
             assert x.size(0) == test['cc']
+
+        edges, weights = cover_pool_edge(index, edge_index)
+
+        assert edges.size(1) == weights.size(0)
+
+        if test['cc'] == 1:
+            assert weights.size(0) == clusters
+        
+        if k == k_max:
+            assert weights.size(0) == test['cc']
 
 
 @pytest.mark.parametrize('cover_priority,kplex_priority,device',
@@ -76,14 +87,16 @@ def test_cover_pool_batch(cover_priority, kplex_priority, device):
 
     for test in tests:
         edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
-        gs.append(Data(edge_index=edge_index))
+        graph = Data(edge_index=edge_index)
+        graph.num_nodes = edge_index.max().item() + 1
+        gs.append(graph)
         ccs += test['cc']
         k = max(k, test['k'])
     
     data = Batch.from_data_list(gs).to(device)
     x = torch.ones((data.num_nodes, features), dtype=torch.float, device=device)
-    index, values, nodes, clusters, batch = kplex_cover(data.edge_index, k, None, False, cover_priority, kplex_priority, batch=data.batch)
-    x, idx, w = cover_pool(x, data.edge_index, index, cover_values=values)
+    index, _, batch = kplex_cover(data.edge_index, k, None, cover_priority, kplex_priority, batch=data.batch)
+    x = cover_pool_node(index, x)
 
     assert batch.max().item() + 1 == len(tests)
     assert batch.size(0) == ccs
