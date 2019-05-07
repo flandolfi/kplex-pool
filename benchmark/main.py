@@ -14,9 +14,10 @@ from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost, KPlexPoolPreKOE
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--batch_size', type=int, default=128)
-parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--lr_decay_factor', type=float, default=0.5)
-parser.add_argument('--lr_decay_step_size', type=int, default=50)
+parser.add_argument('--lr_decay_step_size', type=int, default=25)
+parser.add_argument('--folds', type=int, default=10)
 parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 
@@ -37,9 +38,9 @@ nets = [
 
 def logger(info):
     fold, epoch = info['fold'] + 1, info['epoch']
-    val_loss, test_acc = info['val_loss'], info['test_acc']
-    print('{:02d}/{:03d}: Val Loss: {:.4f}, Test Accuracy: {:.3f}'.format(
-        fold, epoch, val_loss, test_acc))
+    loss, val_loss, test_acc = info['train_loss'], info['val_loss'], info['test_acc']
+    print('{:02d}/{:03d}: Loss: {:.4f}, Val Loss: {:.4f}, Test Accuracy: {:.3f}'.format(
+        fold, epoch, loss, val_loss, test_acc))
 
 results = []
 for dataset_name, Net in product(datasets, nets):
@@ -54,7 +55,7 @@ for dataset_name, Net in product(datasets, nets):
                 loss, acc, std = cross_validation_with_val_set(
                     dataset,
                     model,
-                    folds=10,
+                    folds=args.folds,
                     epochs=args.epochs,
                     batch_size=args.batch_size,
                     lr=args.lr,
@@ -73,7 +74,7 @@ for dataset_name, Net in product(datasets, nets):
         print('-----\n{} - {}'.format(dataset_name, Net.__name__))
         for num_layers, hidden in product(layers, hiddens):
             print("[L: {}, H: {}] ".format(num_layers, hidden), end='')
-            dataset = get_dataset(dataset_name, sparse=Net != DiffPool)
+            dataset = get_dataset(dataset_name, sparse=Net is not DiffPool)
             model = Net(dataset, num_layers, hidden)
             loss, acc, std = cross_validation_with_val_set(
                 dataset,
