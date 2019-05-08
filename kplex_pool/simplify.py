@@ -8,9 +8,9 @@ def simplify(edge_index, weights, keep_max=True, num_nodes=None):
 
     device = edge_index.device
     node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
-    row, col = edge_index
+    row, col = edge_index.cpu()
 
-    sub_graphs = cc_cpu.connected_components(row.cpu(), col.cpu(), num_nodes).to(device)
+    sub_graphs = cc_cpu.connected_components(row, col, num_nodes).to(device)
     num_graphs = sub_graphs.max().item() + 1
     
     out_edges = []
@@ -21,9 +21,9 @@ def simplify(edge_index, weights, keep_max=True, num_nodes=None):
         edge_mask = node_mask.index_select(0, row)
         sg_nodes = node_index.masked_select(node_mask)
         min_index = sg_nodes.min().item()
-        r = row.masked_select(edge_mask).sub_(min_index).cpu()
-        c = col.masked_select(edge_mask).sub_(min_index).cpu()
-        w = weights.masked_select(edge_mask).cpu()
+        r = row.masked_select(edge_mask).sub_(min_index)
+        c = col.masked_select(edge_mask).sub_(min_index)
+        w = weights.masked_select(edge_mask)
 
         r, c, w = simplify_cpu.simplify_cutoff(r, c, w, 
                                                sg_nodes.max().item() - min_index + 1,
