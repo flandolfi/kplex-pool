@@ -39,19 +39,16 @@ def cover_pool_edge(cover_index, edge_index, edge_values=None, num_nodes=None, n
         num_nodes = edge_index.max().item() + 1
     
     if edge_values is None:
-        edge_values = torch.ones(edge_index.size(1), dtype=torch.float)
-    
-    edge_index, edge_values = remove_self_loops(edge_index, edge_values)
+        edge_values = torch.ones(edge_index.size(1), dtype=torch.float, device=device)
 
     if cover_index.is_cuda and (pool == 'add' or pool == 'mean'):
-        cover_values = torch.ones(cover_index.size(1), dtype=torch.float)
+        cover_values = torch.ones(cover_index.size(1), dtype=torch.float, device=device)
         c_idx_t, c_val_t = torch_sparse.transpose(cover_index, cover_values, num_nodes, num_clusters)
 
         out_index, out_weights = torch_sparse.spspmm(c_idx_t, c_val_t, edge_index, edge_values, 
                                                      num_clusters, num_nodes, num_nodes)
         out_index, out_weights = torch_sparse.spspmm(out_index, out_weights, cover_index, cover_values,
                                                      num_clusters, num_nodes, num_clusters)
-        out_index, out_weights = remove_self_loops(out_index, out_weights)
 
         if pool == 'mean':
             ones_idx = cover_index.new_zeros((2, num_clusters))
@@ -61,8 +58,11 @@ def cover_pool_edge(cover_index, edge_index, edge_values=None, num_nodes=None, n
             sum_idx, sum_val = torch_sparse.spspmm(ones_idx, ones_val, out_index, out_weights, 
                                                    1, num_clusters, num_clusters)
             sum_idx[0] = torch.arange(num_clusters, dtype=torch.long, device=device)
+            sum_idx[1] = torch.arange(num_clusters, dtype=torch.long, device=device)
             out_index, out_weights = torch_sparse.spspmm(out_index, out_weights, sum_idx, sum_val,
                                                          num_clusters, num_clusters, num_clusters)
+        
+        out_index, out_weights = remove_self_loops(out_index, out_weights)
         
         return out_index, out_weights
     

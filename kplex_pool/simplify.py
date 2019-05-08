@@ -2,16 +2,17 @@ import torch
 from kplex_pool import simplify_cpu, cc_cpu
 
 
-def simplify(edge_index, weights, keep_max=True, num_nodes=None):
+def simplify(edge_index, edge_attr, keep_max=True, num_nodes=None):
     if num_nodes is None:
         num_nodes = edge_index.max().item() + 1
 
     device = edge_index.device
-    node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
+    node_index = torch.arange(0, num_nodes, dtype=torch.long, device='cpu')
     row, col = edge_index.cpu()
 
-    sub_graphs = cc_cpu.connected_components(row, col, num_nodes).to(device)
+    sub_graphs = cc_cpu.connected_components(row, col, num_nodes)
     num_graphs = sub_graphs.max().item() + 1
+    weights = edge_attr.cpu()
     
     out_edges = []
     out_weights = []
