@@ -1,6 +1,7 @@
 import torch
 import torch_sparse
 import torch_scatter
+from kplex_pool import pool_edges_cpu
 
 
 def cover_pool_node(cover_index, x, num_clusters=None, pool='mean'):
@@ -24,63 +25,50 @@ def cover_pool_node(cover_index, x, num_clusters=None, pool='mean'):
     return out
 
 def cover_pool_edge(cover_index, edge_index, edge_values=None, num_nodes=None, num_clusters=None, pool="add"):
+    pool_op = getattr(pool_edges_cpu.PoolOp, pool, None)
+
+    if pool_op is None:
+        raise ValueError('Not a valid priority: %s' % pool_op)
+
     if num_clusters is None:
         num_clusters = cover_index[1].max().item() + 1
     
     if num_nodes is None:
         num_nodes = edge_index.max().item() + 1
     
-    out_row = []
-    out_col = []
-    out_w = []
-    row, col = edge_index
-
     if edge_values is None:
-        edge_values = torch.ones_like(row, dtype=torch.float)
+        edge_values = torch.ones(edge_index.size(1), dtype=torch.float)
 
-    for k_row in range(num_clusters):
-        k_row_nodes = cover_index.masked_select(cover_index[1] == k_row)
-        node_mask_row = edge_index.new_zeros(num_nodes).byte()
-        node_mask_row[k_row_nodes] = True
-        edge_mask_row = node_mask_row.index_select(0, row)
-        edge_mask_col = node_mask_row.index_select(0, col)
+    if pool == 'add' or pool == 'mean':
+        cover_values = torch.ones(cover_index.size(1), dtype=torch.float)
+        c_idx_t, c_val_t = torch_sparse.transpose(cover_index, cover_values, num_nodes, num_clusters)
 
-        self_loops = edge_values.masked_select(edge_mask_col * edge_mask_row)
-        out_w.append(self_loops)
-        out_col.append(k_row * torch.ones_like(self_loops, dtype=torch.long))
-        out_row.append(k_row * torch.ones_like(self_loops, dtype=torch.long))
+        out_index, out_weights = torch_sparse.spspmm(c_idx_t, c_val_t, edge_index, edge_values, 
+                                                     num_clusters, num_nodes, num_nodes)
+        out_index, out_weights = torch_sparse.spspmm(out_index, out_weights, cover_index, cover_values,
+                                                     num_clusters, num_nodes, num_clusters)
 
-        for k_col in range(num_clusters):
-            if k_col == k_row:
-                continue
-            
-            k_col_nodes = cover_index.masked_select(cover_index[1] == k_col)
-            node_mask_col = edge_index.new_zeros(num_nodes).byte()
-            node_mask_col[k_col_nodes] = True
-            edge_mask_col = node_mask_col.index_select(0, col)
+        if pool == 'mean':
+            ones_idx = cover_index.new_zeros((2, num_clusters))
+            ones_idx[1] = torch.arange(num_clusters, dtype=torch.long, device=cover_index.device)
+            ones_val = torch.ones(num_clusters, dtype=torch.float, device=cover_index.device)
 
-            edges = edge_values.masked_select(edge_mask_col * edge_mask_row)
-            out_w.append(edges)
-            out_col.append(k_row * torch.ones_like(edges, dtype=torch.long))
-            out_row.append(k_row * torch.ones_like(edges, dtype=torch.long))
-            
-    out_row = torch.cat(out_row)
-    out_col = torch.cat(out_col)
-    out_w = torch.cat(out_w)
+            sum_idx, sum_val = torch_sparse.spspmm(ones_idx, ones_val, out_index, out_weights, 
+                                                   1, num_clusters, num_clusters)
+            sum_idx[0] = torch.arange(num_clusters, dtype=torch.long, device=cover_index.device)
+            out_index, out_weights = torch_sparse.spspmm(out_index, out_weights, sum_idx, sum_val,
+                                                         num_clusters, num_clusters, num_clusters)
+        
+        return out_index, out_weights
 
-    out_index = torch.stack([out_row, out_col])
-    fill_value = 0
-
-    if pool == 'min':
-        fill_value = out_w.max().item() 
-    elif pool == 'max':
-        fill_value = out_w.min().item()
-    elif pool == 'mul' or pool == 'div':
-        fill_value = 1
-
-    return torch_sparse.coalesce(out_index, out_w, num_clusters, num_clusters, 
-                                 op=pool, fill_value=fill_value)
-
+    device = cover_index.device
+    cover_row, cover_col = cover_index.cpu()
+    row, col = edge_index.cpu()
+    weight = edge_values.cpu()
+    
+    out_row, out_col, out_weight = pool_edges_cpu.pool_edges(cover_row, cover_col, row, col, weight, pool_op, num_nodes)
+    
+    return torch.stack([out_row, out_col]).to(device), out_weight.to(device)
 
 
     

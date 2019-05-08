@@ -71,10 +71,10 @@ def test_cover_pool(test, cover_priority, kplex_priority, device):
         assert edges.size(1) == weights.size(0)
 
         if test['cc'] == 1:
-            assert weights.size(0) == clusters
+            assert weights.size(0) == clusters**2
         
         if k == k_max:
-            assert weights.size(0) == test['cc']
+            assert weights.size(0) == clusters
 
 
 @pytest.mark.parametrize('cover_priority,kplex_priority,device',

@@ -7,6 +7,7 @@ extra_compile_args = []
 
 ext_modules = [
     CppExtension('kplex_pool.kplex_cpu', ['cpu/kplex.cpp'], extra_compile_args=extra_compile_args),
+    CppExtension('kplex_pool.pool_edges_cpu', ['cpu/pool_edges.cpp'], extra_compile_args=extra_compile_args),
     CppExtension('kplex_pool.cc_cpu', ['cpu/cc.cpp'], extra_compile_args=extra_compile_args),
     CppExtension('kplex_pool.simplify_cpu', [
                      'cpu/simplify.cpp',

@@ -61,7 +61,7 @@ class KPlexPool(torch.nn.Module):
         weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
 
         batch_size = batch[-1].item() + 1
-        x = F.relu(self.in_block(x, edge_index))
+        x = F.relu(self.in_block(x, edge_index.clone()))
 
         for embed in self.blocks:            
             if self.simplify == 'pre':
@@ -79,7 +79,7 @@ class KPlexPool(torch.nn.Module):
             edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
             nodes = clusters
 
-            x = F.relu(embed(x, edge_index))
+            x = F.relu(embed(x, edge_index.clone()))
 
         x = global_mean_pool(x, batch, batch_size)
         x = F.dropout(x, p=0.5, training=self.training)
