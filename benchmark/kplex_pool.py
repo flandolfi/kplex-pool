@@ -69,16 +69,15 @@ class KPlexPool(torch.nn.Module):
                 edge_index, weights = simplify(edge_index, weights)
 
             c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
+            x = cover_pool_node(c_idx, x, clusters, pool='mean')
+            edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
 
             if self.simplify == 'post':
                 edge_index, weights = simplify(edge_index, weights)
             elif self.simplify == 'pre' and self.keep_edges:
                 edge_index, weights = old_edges, old_weights
 
-            x = cover_pool_node(c_idx, x, clusters, pool='mean')
-            edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
             nodes = clusters
-
             x = F.relu(embed(x, edge_index.clone()))
 
         x = global_mean_pool(x, batch, batch_size)
