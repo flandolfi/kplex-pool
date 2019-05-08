@@ -53,10 +53,16 @@ pool_edges(at::Tensor index_row, at::Tensor index_col, at::Tensor row, at::Tenso
         }
 
         for (auto i = 0; i < row.size(0); i++) {
+            if (row_acc[i] == col_acc[i])
+                continue;
+
             auto c_from = node_clusters[row_acc[i]], c_to = node_clusters[col_acc[i]];
 
             for (auto l_node: c_from) {
                 for (auto r_node: c_to) {
+                    if (l_node == r_node)
+                        continue;
+
                     if (!out_edges.count(std::make_pair(l_node, r_node))) {
                         out_edges[std::make_pair(l_node, r_node)] = weight_acc[i];
                         
