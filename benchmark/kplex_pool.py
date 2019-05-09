@@ -3,7 +3,7 @@ from math import ceil
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear
-from torch_geometric.nn import SAGEConv, global_mean_pool
+from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
@@ -15,27 +15,41 @@ class KPlexPool(torch.nn.Module):
         self.simplify = simplify
         self.keep_edges = keep_edges
 
-        self.conv_in = SAGEConv(dataset.num_features, hidden)
-
+        self.conv_in = GCNConv(dataset.num_features, hidden)
         self.blocks = torch.nn.ModuleList()
         
         for _ in range(num_layers - 1):
-            self.blocks.append(SAGEConv(hidden, hidden))
+            self.blocks.append(GCNConv(hidden, hidden))
         
-        self.conv_out = SAGEConv(hidden, dataset.num_classes)
+        self.lin1 = Linear(2 * num_layers * hidden, hidden)
+        self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
         self.conv_in.reset_parameters()
 
         for block in self.blocks:
             block.reset_parameters()
-
-        self.conv_out.reset_parameters()
+            
+        self.lin1.reset_parameters()
+        self.lin2.reset_parameters()
     
-    def _normalize(self, x):
-        norm = x.norm(p=2, dim=1, keepdim=True).detach()
-        
-        return x.div(norm)
+    def process_input(self, x, edge_index, weights, nodes, batch):
+        if self.simplify == 'pre':
+            old_edges, old_weights = edge_index, weights
+            edge_index, weights = simplify(edge_index, weights)
+
+        c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
+        x = cover_pool_node(c_idx, x, clusters, pool='mean')
+        edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
+
+        if self.simplify == 'post':
+            edge_index, weights = simplify(edge_index, weights)
+        elif self.simplify == 'pre' and self.keep_edges:
+            edge_index, weights = old_edges, old_weights
+
+        nodes = clusters
+
+        return x, edge_index, weights, nodes, batch
 
     def forward(self, data):
         x, edge_index, nodes, batch = data.x, data.edge_index, data.num_nodes, data.batch
@@ -43,31 +57,22 @@ class KPlexPool(torch.nn.Module):
         weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
 
         batch_size = batch[-1].item() + 1
-        x = F.relu(self.conv_in(x, edge_index.clone()))
-        x = self._normalize(x)
+        x = F.relu(self.conv_in(x, edge_index, weights))
+        xs = [ 
+            global_mean_pool(x, batch, batch_size), 
+            global_max_pool(x, batch, batch_size)
+        ]
 
-        for embed in self.blocks:     
-            x = F.relu(embed(x, edge_index.clone()))
-            x = self._normalize(x)
-
-            if self.simplify == 'pre':
-                old_edges, old_weights = edge_index, weights
-                edge_index, weights = simplify(edge_index, weights)
-
-            c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
-            x = cover_pool_node(c_idx, x, clusters, pool='mean')
-            edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
-
-            if self.simplify == 'post':
-                edge_index, weights = simplify(edge_index, weights)
-            elif self.simplify == 'pre' and self.keep_edges:
-                edge_index, weights = old_edges, old_weights
-
-            nodes = clusters
-
-        x = self.conv_out(x, edge_index.clone())
-        x = self._normalize(x)
-        x = global_mean_pool(x, batch, batch_size)
+        for block in self.blocks:    
+            x, edge_index, weights, nodes, batch = self.process_input(x, edge_index, weights, nodes, batch)
+            x = F.relu(block(x, edge_index, weights))
+            xs.append(global_mean_pool(x, batch, batch_size))
+            xs.append(global_max_pool(x, batch, batch_size))
+        
+        x = torch.cat(xs, dim=1)
+        x = F.relu(self.lin1(x))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.lin2(x)
 
         return F.log_softmax(x, dim=-1)
 
