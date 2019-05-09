@@ -41,7 +41,7 @@ nets = [
 def logger(info):
     fold, epoch = info['fold'] + 1, info['epoch']
     loss, val_loss, test_acc = info['train_loss'], info['val_loss'], info['test_acc']
-    print('{:02d}/{:03d}: Loss: {:.4f}, Val Loss: {:.4f}, Test Accuracy: {:.3f}'.format(
+    print('{:02d}/{:03d}: Loss: {:.4f}, Val Loss: {:.4f}, Test Accuracy: {:.4f}'.format(
         fold, epoch, loss, val_loss, test_acc), file=sys.stderr)
 
 results = []
@@ -75,7 +75,7 @@ for dataset_name, Net in product(datasets, nets):
         if loss < best_result[0]:
             best_result = (loss, acc, std)
 
-    desc = '{:.3f} ± {:.3f}'.format(best_result[1], best_result[2])
+    desc = '{:.4f} ± {:.4f}'.format(best_result[1], best_result[2])
     print('Best result - {}'.format(desc))
     results += ['{} - {}: {}'.format(dataset_name, model, desc)]
    
