@@ -8,28 +8,6 @@ from torch_geometric.nn import SAGEConv, global_mean_pool
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
-class Block(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
-        super(Block, self).__init__()
-
-        self.conv1 = SAGEConv(in_channels, hidden_channels)
-        self.conv2 = SAGEConv(hidden_channels, out_channels)
-
-        self.lin = torch.nn.Linear(hidden_channels + out_channels,
-                                   out_channels)
-
-    def reset_parameters(self):
-        self.conv1.reset_parameters()
-        self.conv2.reset_parameters()
-        self.lin.reset_parameters()
-
-    def forward(self, x, edge_index):
-        x1 = F.relu(self.conv1(x, edge_index))
-        x2 = F.relu(self.conv2(x1, edge_index))
-
-        return self.lin(torch.cat([x1, x2], dim=-1))
-
-
 class KPlexPool(torch.nn.Module):
     def __init__(self, dataset, num_layers, hidden, k, simplify=None, keep_edges=False):
         super(KPlexPool, self).__init__()
@@ -37,23 +15,27 @@ class KPlexPool(torch.nn.Module):
         self.simplify = simplify
         self.keep_edges = keep_edges
 
-        self.in_block = Block(dataset.num_features, hidden, hidden)
+        self.conv_in = SAGEConv(dataset.num_features, hidden)
+
         self.blocks = torch.nn.ModuleList()
         
         for _ in range(num_layers - 1):
-            self.blocks.append(Block(hidden, hidden, hidden))
-
-        self.lin1 = Linear(num_layers*hidden, hidden)
-        self.lin2 = Linear(hidden, dataset.num_classes)
+            self.blocks.append(SAGEConv(hidden, hidden))
+        
+        self.conv_out = SAGEConv(hidden, dataset.num_classes)
 
     def reset_parameters(self):
-        self.in_block.reset_parameters()
+        self.conv_in.reset_parameters()
 
         for block in self.blocks:
             block.reset_parameters()
 
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
+        self.conv_out.reset_parameters()
+    
+    def _normalize(self, x):
+        norm = x.norm(p=2, dim=1, keepdim=True).detach()
+        
+        return x.div(norm)
 
     def forward(self, data):
         x, edge_index, nodes, batch = data.x, data.edge_index, data.num_nodes, data.batch
@@ -61,9 +43,13 @@ class KPlexPool(torch.nn.Module):
         weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
 
         batch_size = batch[-1].item() + 1
-        x = F.relu(self.in_block(x, edge_index.clone()))
+        x = F.relu(self.conv_in(x, edge_index.clone()))
+        x = self._normalize(x)
 
-        for embed in self.blocks:            
+        for embed in self.blocks:     
+            x = F.relu(embed(x, edge_index.clone()))
+            x = self._normalize(x)
+
             if self.simplify == 'pre':
                 old_edges, old_weights = edge_index, weights
                 edge_index, weights = simplify(edge_index, weights)
@@ -78,11 +64,10 @@ class KPlexPool(torch.nn.Module):
                 edge_index, weights = old_edges, old_weights
 
             nodes = clusters
-            x = F.relu(embed(x, edge_index.clone()))
 
+        x = self.conv_out(x, edge_index.clone())
+        x = self._normalize(x)
         x = global_mean_pool(x, batch, batch_size)
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = self.lin2(x)
 
         return F.log_softmax(x, dim=-1)
 
