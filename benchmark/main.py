@@ -2,14 +2,8 @@ from itertools import product
 import sys
 import argparse
 
-from kernel.datasets import get_dataset
-from kernel.train_eval import cross_validation_with_val_set
-
-from kernel.top_k import TopK
-from kernel.diff_pool import DiffPool
-from kernel.set2set import Set2SetNet
-from kernel.sort_pool import SortPool
-
+from .datasets import get_dataset
+from .train_eval import cross_validation_with_val_set
 from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost, KPlexPoolPreKOE
 
 parser = argparse.ArgumentParser()
@@ -19,7 +13,7 @@ parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--lr_decay_factor', type=float, default=0.5)
 parser.add_argument('--lr_decay_step_size', type=int, default=25)
 parser.add_argument('--weight_decay', type=float, default=0.001)
-parser.add_argument('--folds', type=int, default=5)
+parser.add_argument('--folds', type=int, default=10)
 parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 
@@ -28,10 +22,6 @@ hiddens = [64]
 ks = [1, 4, 16, 64]
 datasets = ['PROTEINS'] #, 'IMDB-BINARY', 'REDDIT-BINARY', 'ENZYMES',  'COLLAB', 'DD'
 nets = [
-    # TopK,
-    # DiffPool,
-    # Set2SetNet,
-    # SortPool,
     KPlexPool, 
     KPlexPoolPre, 
     KPlexPoolPreKOE, 
@@ -40,26 +30,22 @@ nets = [
 
 def logger(info):
     fold, epoch = info['fold'] + 1, info['epoch']
-    loss, val_loss, test_acc = info['train_loss'], info['val_loss'], info['test_acc']
-    print('{:02d}/{:03d}: Loss: {:.4f}, Val Loss: {:.4f}, Test Accuracy: {:.4f}'.format(
+    loss, val_loss, test_acc = info['train_loss'], info['val_loss'], info['val_acc']
+    print('{:02d}/{:03d}: Loss: {:.4f}, Val Loss: {:.4f}, Val Accuracy: {:.4f}'.format(
         fold, epoch, loss, val_loss, test_acc), file=sys.stderr)
 
 results = []
 
 for dataset_name, Net in product(datasets, nets):
-    param_it = product(layers, hiddens, ks) if Net.__name__.startswith('KPlexPool') else product(layers, hiddens)
+    param_it = product(layers, hiddens, ks)
     best_result = (float('inf'), 0, 0)
     print('-----\n{} - {}'.format(dataset_name, Net.__name__))
 
     for params in param_it:
-        dataset = get_dataset(dataset_name, sparse=Net is not DiffPool)
+        dataset = get_dataset(dataset_name, sparse=True)
         model = Net(*((dataset,) + params))
-        model_desc = "L: {}, H: {}".format(*params[:2])
-
-        if Net.__name__.startswith('KPlexPool'):
-            model_desc += ", K: {}".format(params[2])
         
-        print("PARAMS: {}".format(model_desc))
+        print("PARAMS: L: {}, H: {}, K: {}".format(*params))
 
         loss, acc, std = cross_validation_with_val_set(
             dataset,
