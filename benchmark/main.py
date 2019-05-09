@@ -15,17 +15,18 @@ from .kplex_pool import KPlexPool, KPlexPoolPre, KPlexPoolPost, KPlexPoolPreKOE
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--batch_size', type=int, default=128)
-parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--lr_decay_factor', type=float, default=0.5)
 parser.add_argument('--lr_decay_step_size', type=int, default=25)
+parser.add_argument('--weight_decay', type=float, default=0.001)
 parser.add_argument('--folds', type=int, default=5)
 parser.add_argument('--verbose', action='store_true')
 args = parser.parse_args()
 
-layers = [2, 3, 4, 5]
-hiddens = [256]
+layers = [2] #, 3, 4, 5]
+hiddens = [64]
 ks = [1, 4, 16, 64]
-datasets = ['ENZYMES', 'DD', 'REDDIT-BINARY', 'COLLAB', 'PROTEINS'] #, 'IMDB-BINARY'
+datasets = ['DD', 'COLLAB', 'PROTEINS'] #, 'IMDB-BINARY', 'REDDIT-BINARY', 'ENZYMES', 
 nets = [
     # TopK,
     # DiffPool,
@@ -69,7 +70,7 @@ for dataset_name, Net in product(datasets, nets):
             lr=args.lr,
             lr_decay_factor=args.lr_decay_factor,
             lr_decay_step_size=args.lr_decay_step_size,
-            weight_decay=0,
+            weight_decay=args.weight_decay,
             logger=logger if args.verbose else None)
         if loss < best_result[0]:
             best_result = (loss, acc, std)
