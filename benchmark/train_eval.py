@@ -73,7 +73,7 @@ def cross_validation_with_val_set(dataset,
     loss, argmin = loss.min(dim=1)
     acc = acc[torch.arange(folds, dtype=torch.long), argmin]
 
-    print('Val Loss: {:.4f}, Val Accuracy: {:.3f} ± {:.3f}, Duration: {:.3f}'.
+    print('Val Loss: {:.4f}, Val Accuracy: {:.4f} ± {:.4f}, Duration: {:.4f}'.
           format(loss.mean().item(),
                  acc.mean().item(),
                  acc.std().item(),
