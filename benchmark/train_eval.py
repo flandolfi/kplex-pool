@@ -52,7 +52,7 @@ def cross_validation_with_val_set(dataset,
                 'epoch': epoch,
                 'train_loss': train_loss,
                 'val_loss': val_losses[-1],
-                'val_acc': accs[-1],
+                'val_acc': 100. * accs[-1],
             }
 
             if logger is not None:
@@ -71,9 +71,9 @@ def cross_validation_with_val_set(dataset,
     loss, acc, duration = tensor(val_losses), tensor(accs), tensor(durations)
     loss, acc = loss.view(folds, epochs), acc.view(folds, epochs)
     loss, argmin = loss.min(dim=1)
-    acc = acc[torch.arange(folds, dtype=torch.long), argmin]
+    acc = 100. * acc[torch.arange(folds, dtype=torch.long), argmin]
 
-    print('Val Loss: {:.4f}, Val Accuracy: {:.4f} ± {:.4f}, Duration: {:.4f}'.
+    print('Val Loss: {:.4f}, Val Accuracy: {:.3f} ± {:.3f}, Duration: {:.3f}'.
           format(loss.mean().item(),
                  acc.mean().item(),
                  acc.std().item(),
