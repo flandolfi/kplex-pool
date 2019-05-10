@@ -58,7 +58,8 @@ def cross_validation_with_val_set(dataset,
             if logger is not None:
                 logger(eval_info)
 
-            if epoch % lr_decay_step_size == 0:
+            if lr_decay_factor is not None and lr_decay_step_size is not None \
+                    and epoch % lr_decay_step_size == 0:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr_decay_factor * param_group['lr']
 
