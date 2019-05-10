@@ -49,6 +49,7 @@ class KPlexPool(torch.nn.Module):
         weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
 
         batch_size = batch[-1].item() + 1
+        x = F.normalize(x)
         x = F.relu(self.conv_in(x, edge_index, weights))
         xs = [ 
             global_mean_pool(x, batch, batch_size), 
@@ -57,12 +58,14 @@ class KPlexPool(torch.nn.Module):
 
         for block in self.blocks:    
             x, edge_index, weights, nodes, batch = self.pool_graphs(x, edge_index, weights, nodes, batch)
+            x = F.normalize(x)
             x = F.relu(block(x, edge_index, weights))
 
             xs.append(global_mean_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
         
         x = torch.cat(xs, dim=1)
+        x = F.normalize(x)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=0.3, training=self.training)
         x = self.lin2(x)
