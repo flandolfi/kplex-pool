@@ -36,12 +36,11 @@ class KPlexPool(torch.nn.Module):
         c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
         x = cover_pool_node(c_idx, x, clusters, pool='mean')
         edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
-        nodes = clusters
 
         if self.simplify:
-            edge_index, weights = simplify(edge_index, weights)
+            edge_index, weights = simplify(edge_index, weights, num_nodes=clusters)
 
-        return x, edge_index, weights, nodes, batch
+        return x, edge_index, weights, clusters, batch
 
     def forward(self, data):
         x, edge_index, nodes, batch = data.x, data.edge_index, data.num_nodes, data.batch
