@@ -19,9 +19,9 @@ parser.add_argument('--verbose', action='store_true')
 parser.add_argument('--to_csv', type=str, default=None)
 args = parser.parse_args()
 
-layers = [2, 3] # 4, 5]
+layers = [2, 3, 4] 
 hiddens = [64]
-ks = [1, 2, 4, 8, 16]
+ks = [1, 2, 4, 8, 16, 32]
 datasets = ['PROTEINS'] #, 'IMDB-BINARY', 'REDDIT-BINARY', 'ENZYMES',  'COLLAB', 'DD'
 nets = [
     KPlexPool, 
