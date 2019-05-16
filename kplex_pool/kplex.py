@@ -1,9 +1,29 @@
 import torch
 from kplex_pool import kplex_cpu
+from functools import partial
+
+
+def _compute_batch(node_index, edge_index, k, c_priority, k_priority, batch, b):
+    node_mask = batch == b
+    edge_mask = node_mask.index_select(0, edge_index[0])
+    batch_nodes = node_index.masked_select(node_mask)
+    min_index = batch_nodes[0].item()
+    r, c = edge_index - min_index
+    r = r.masked_select(edge_mask).cpu()
+    c = c.masked_select(edge_mask).cpu()
+
+    index = kplex_cpu.kplex_cover(r, c, k, 
+                                    batch_nodes[-1].item() - min_index + 1, 
+                                    c_priority, 
+                                    k_priority)
+
+    index[0].add_(min_index)
+
+    return index
 
 
 def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree", 
-                kplex_priority="max_in_kplex", batch=None):
+                kplex_priority="max_in_kplex", batch=None, mp_pool=None):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
     k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
     device = edge_index.device
@@ -23,31 +43,30 @@ def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree",
     
     node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
     batch_size = batch[-1].item() + 1
+    out_clusters = 0
     out_index = []
     out_batch = []
-    out_clusters = 0
 
-    for b in range(batch_size):
-        node_mask = batch == b
-        edge_mask = node_mask.index_select(0, edge_index[0])
-        batch_nodes = node_index.masked_select(node_mask)
-        min_index = batch_nodes[0].item()
-        r, c = edge_index - min_index
-        r = r.masked_select(edge_mask).cpu()
-        c = c.masked_select(edge_mask).cpu()
+    if mp_pool is None:
+        for b in range(batch_size):
+            index = _compute_batch(node_index, edge_index, k, c_priority, k_priority, batch, b)
+            clusters = index[1].max().item() + 1
+            index[1].add_(out_clusters)
+            
+            out_index.append(index.to(device))
+            out_batch.append(batch.new_ones(clusters).mul_(b))
+            out_clusters += clusters
+    else:
+        indexes = mp_pool.map(partial(_compute_batch, node_index, edge_index, k, c_priority, k_priority, batch), range(batch_size))
 
-        index = kplex_cpu.kplex_cover(r, c, k, 
-                                      batch_nodes[-1].item() - min_index + 1, 
-                                      c_priority, 
-                                      k_priority)
+        for b, index in enumerate(indexes):
+            clusters = index[1].max().item() + 1
+            index[1].add_(out_clusters)
+            
+            out_index.append(index.to(device))
+            out_batch.append(batch.new_ones(clusters).mul_(b))
+            out_clusters += clusters
 
-        clusters = index[1].max().item() + 1
-        index[0].add_(min_index)
-        index[1].add_(out_clusters)
-        
-        out_index.append(index.to(device))
-        out_batch.append(batch.new_ones(clusters).mul_(b))
-        out_clusters += clusters
 
     return torch.cat(out_index, dim=1), out_clusters, torch.cat(out_batch, dim=0)
 
