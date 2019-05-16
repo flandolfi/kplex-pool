@@ -11,19 +11,10 @@ from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
 class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, k, simplify=False, workers=-1):
+    def __init__(self, dataset, num_layers, hidden, k, simplify=False):
         super(KPlexPool, self).__init__()
         self.k = k
         self.simplify = simplify
-
-        if workers == 1:
-            self.pool = None
-        else:
-            if workers < 1:
-                workers = os.cpu_count()
-            
-            mp.set_start_method('spawn')
-            self.pool = mp.Pool(workers)
 
         self.conv_in = GCNConv(dataset.num_features, hidden)
         self.blocks = torch.nn.ModuleList()
@@ -44,7 +35,7 @@ class KPlexPool(torch.nn.Module):
         self.lin2.reset_parameters()
     
     def pool_graphs(self, x, k, edge_index, weights, nodes, batch):
-        c_idx, clusters, batch = kplex_cover(edge_index, k, nodes, batch=batch, mp_pool=self.pool)
+        c_idx, clusters, batch = kplex_cover(edge_index, k, nodes, batch=batch)
         x_mean = cover_pool_node(c_idx, x, clusters, pool='add')
         x_max = cover_pool_node(c_idx, x, clusters, pool='max')
         x = torch.cat([x_mean, x_max], dim=1)
@@ -89,10 +80,6 @@ class KPlexPool(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
-    
-    def __del__(self):
-        if self.pool is not None:
-            self.pool.close()
 
 
 class KPlexPoolSimplify(KPlexPool):
