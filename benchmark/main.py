@@ -3,9 +3,9 @@ import sys
 import argparse
 import numpy as np
 
-from .datasets import get_dataset
-from .train_eval import cross_validation_with_val_set
-from .kplex_pool import KPlexPool, KPlexPoolSimplify
+from benchmark.datasets import get_dataset
+from benchmark.train_eval import cross_validation_with_val_set
+from benchmark.models import KPlexPool, KPlexPoolSimplify
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epochs', type=int, default=100)
@@ -21,11 +21,11 @@ args = parser.parse_args()
 
 layers = [2, 3, 4] 
 hiddens = [64]
-ks = [1, 2, 4, 8, 16, 32]
+ks = [4, 8, 16]
 datasets = ['PROTEINS'] #, 'IMDB-BINARY', 'REDDIT-BINARY', 'ENZYMES',  'COLLAB', 'DD'
 nets = [
     KPlexPool, 
-    KPlexPoolSimplify
+    # KPlexPoolSimplify
 ]
 
 def logger(info):

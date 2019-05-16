@@ -1,24 +1,34 @@
 from math import ceil
+import os
 
 import torch
 import torch.nn.functional as F
-from torch.nn import Linear
-from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool
+import torch.multiprocessing as mp
+from torch.nn import Linear, Conv1d
+from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool, global_sort_pool, global_add_pool
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
 class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, k, simplify=False):
+    def __init__(self, dataset, num_layers, hidden, k, simplify=False, workers=-1):
         super(KPlexPool, self).__init__()
         self.k = k
         self.simplify = simplify
+
+        if workers == 1:
+            self.pool = None
+        else:
+            if workers < 1:
+                workers = os.cpu_count()
+            
+            self.pool = mp.Pool(workers)
 
         self.conv_in = GCNConv(dataset.num_features, hidden)
         self.blocks = torch.nn.ModuleList()
         
         for _ in range(num_layers - 1):
-            self.blocks.append(GCNConv(hidden, hidden))
+            self.blocks.append(GCNConv(2 * hidden, hidden))
         
         self.lin1 = Linear(2 * num_layers * hidden, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
@@ -32,9 +42,11 @@ class KPlexPool(torch.nn.Module):
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
     
-    def pool_graphs(self, x, edge_index, weights, nodes, batch):
-        c_idx, clusters, batch = kplex_cover(edge_index, self.k, nodes, batch=batch)
-        x = cover_pool_node(c_idx, x, clusters, pool='mean')
+    def pool_graphs(self, x, k, edge_index, weights, nodes, batch):
+        c_idx, clusters, batch = kplex_cover(edge_index, k, nodes, batch=batch, mp_pool=self.pool)
+        x_mean = cover_pool_node(c_idx, x, clusters, pool='add')
+        x_max = cover_pool_node(c_idx, x, clusters, pool='max')
+        x = torch.cat([x_mean, x_max], dim=1)
         edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, pool='add')
 
         if self.simplify:
@@ -51,16 +63,19 @@ class KPlexPool(torch.nn.Module):
         x = F.normalize(x)
         x = F.relu(self.conv_in(x, edge_index, weights))
         xs = [ 
-            global_mean_pool(x, batch, batch_size), 
+            global_add_pool(x, batch, batch_size), 
             global_max_pool(x, batch, batch_size)
         ]
 
+        k = self.k
+
         for block in self.blocks:    
-            x, edge_index, weights, nodes, batch = self.pool_graphs(x, edge_index, weights, nodes, batch)
+            x, edge_index, weights, nodes, batch = self.pool_graphs(x, k, edge_index, weights, nodes, batch)
             x = F.normalize(x)
             x = F.relu(block(x, edge_index, weights))
+            k = ceil(k/2)
 
-            xs.append(global_mean_pool(x, batch, batch_size))
+            xs.append(global_add_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
         
         x = torch.cat(xs, dim=1)
@@ -73,6 +88,10 @@ class KPlexPool(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
+    
+    def __del__(self):
+        if self.pool is not None:
+            self.pool.close()
 
 
 class KPlexPoolSimplify(KPlexPool):
