@@ -22,6 +22,7 @@ class KPlexPool(torch.nn.Module):
             if workers < 1:
                 workers = os.cpu_count()
             
+            mp.set_start_method('spawn')
             self.pool = mp.Pool(workers)
 
         self.conv_in = GCNConv(dataset.num_features, hidden)
