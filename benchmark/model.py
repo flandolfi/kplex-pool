@@ -1,19 +1,18 @@
 from math import ceil
-import os
 
 import torch
 import torch.nn.functional as F
-import torch.multiprocessing as mp
-from torch.nn import Linear, Conv1d
-from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool, global_sort_pool, global_add_pool
+from torch.nn import Linear
+from torch_geometric.nn import GCNConv, global_max_pool, global_add_pool
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
 class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, k, simplify=False):
+    def __init__(self, dataset, num_layers, hidden, k, k_step_factor=0.5, simplify=False):
         super(KPlexPool, self).__init__()
         self.k = k
+        self.k_step_factor = k_step_factor
         self.simplify = simplify
 
         self.conv_in = GCNConv(dataset.num_features, hidden)
@@ -46,10 +45,10 @@ class KPlexPool(torch.nn.Module):
 
         return x, edge_index, weights, clusters, batch
 
-    def forward(self, data):
-        x, edge_index, nodes, batch = data.x, data.edge_index, data.num_nodes, data.batch
-
-        weights = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
+    def forward(self, x, adj, batch):
+        nodes = x.size(0)
+        edge_index = adj._indices()
+        weights = adj._values()
 
         batch_size = batch[-1].item() + 1
         x = F.normalize(x)
@@ -65,7 +64,7 @@ class KPlexPool(torch.nn.Module):
             x, edge_index, weights, nodes, batch = self.pool_graphs(x, k, edge_index, weights, nodes, batch)
             x = F.normalize(x)
             x = F.relu(block(x, edge_index, weights))
-            k = ceil(k/2)
+            k = ceil(k*self.k_step_factor)
 
             xs.append(global_add_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
@@ -76,12 +75,7 @@ class KPlexPool(torch.nn.Module):
         x = F.dropout(x, p=0.3, training=self.training)
         x = self.lin2(x)
 
-        return F.log_softmax(x, dim=-1)
+        return F.softmax(x, dim=-1)
 
     def __repr__(self):
         return self.__class__.__name__
-
-
-class KPlexPoolSimplify(KPlexPool):
-    def __init__(self, k, dataset, num_layers, hidden):
-        super(KPlexPoolSimplify, self).__init__(k, dataset, num_layers, hidden, True)
