@@ -2,6 +2,7 @@ import torch
 import skorch
 from torch_geometric.data import Batch
 
+
 class SkorchDataLoader(torch.utils.data.DataLoader):
     def __init__(self,
                  dataset,
@@ -31,10 +32,8 @@ class SkorchDataLoader(torch.utils.data.DataLoader):
     
         
 class SkorchDataset(skorch.dataset.Dataset):
-    def __init__(self, dataset):
-        X = [data for data in dataset]
-
-        super(SkorchDataset, self).__init__(X, y=dataset.data.y, length=len(dataset))
+    def __init__(self, X, y):        
+        super(SkorchDataset, self).__init__(X, y=y, length=len(X))
     
     def transform(self, X, y):
         return X
