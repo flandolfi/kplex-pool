@@ -43,7 +43,8 @@ if __name__ == "__main__":
         iterator_train=SkorchDataLoader,
         iterator_valid=SkorchDataLoader,
         dataset=SkorchDataset,
-        train_split=None
+        train_split=None,
+        device='cuda' if torch.cuda.is_available() else 'cpu'
     )
 
     params = {

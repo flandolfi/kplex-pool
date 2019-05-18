@@ -45,7 +45,8 @@ if __name__ == "__main__":
         iterator_train=SkorchDataLoader,
         iterator_valid=SkorchDataLoader,
         dataset=SkorchDataset,
-        train_split=CVSplit(cv=args.split, stratified=True, random_state=42)
+        train_split=CVSplit(cv=args.split, stratified=True, random_state=42),
+        device='cuda' if torch.cuda.is_available() else 'cpu'
     )
 
     net.fit(list(dataset), dataset.data.y.numpy())
