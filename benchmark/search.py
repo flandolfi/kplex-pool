@@ -45,6 +45,7 @@ if __name__ == "__main__":
         optimizer=torch.optim.Adam,
         optimizer__weight_decay=args.weight_decay,
         iterator_train=SkorchDataLoader,
+        iterator_train__shuffle=True,
         iterator_valid=SkorchDataLoader,
         dataset=SkorchDataset,
         train_split=None,
@@ -55,6 +56,8 @@ if __name__ == "__main__":
         ],
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
+    
+    net.set_params(callbacks__print_log=None)
 
     params = {
         'module__num_layers': [2, 3, 4],
@@ -72,6 +75,7 @@ if __name__ == "__main__":
                        iid=False, 
                        scoring='accuracy', 
                        return_train_score=False,
+                       n_jobs=None,
                        verbose=3)
 
     clf.fit(list(dataset), dataset.data.y.numpy())
