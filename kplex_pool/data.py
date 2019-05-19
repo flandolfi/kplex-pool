@@ -19,7 +19,7 @@ class SkorchDataLoader(torch.utils.data.DataLoader):
     
     def _collate_fn(self, data_list, follow_batch=[]):
         data = Batch.from_data_list(data_list, follow_batch)
-        edge_attr = torch.ones_like(data.edge_index[0]).type(torch.float) if data.edge_attr is None else data.edge_attr
+        edge_attr = data.edge_attr if data.edge_attr else torch.ones_like(data.edge_index[0], dtype=torch.float)  
         
         return {
             'x': data.x,
