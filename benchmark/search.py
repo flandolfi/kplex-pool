@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 import torch
+from torch.optim.lr_scheduler import StepLR
 from torch_geometric.datasets import TUDataset
 
 import json
@@ -12,6 +13,7 @@ import json
 import skorch
 from skorch import NeuralNetClassifier
 from skorch.dataset import CVSplit
+from skorch.callbacks import LRScheduler
 
 from benchmark.model import KPlexPool
 from kplex_pool.data import SkorchDataLoader, SkorchDataset
@@ -63,11 +65,15 @@ if __name__ == "__main__":
 
     clf = GridSearchCV(estimator=net, 
                        param_grid=params, 
-                       cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42), 
+                       cv=StratifiedKFold(n_splits=args.folds, 
+                                          shuffle=True, 
+                                          random_state=42), 
                        refit=False, 
                        iid=False, 
                        scoring='accuracy', 
-                       verbose=0)
+                       return_train_score=False,
+                       verbose=3)
+
     clf.fit(list(dataset), dataset.data.y.numpy())
 
     print("Best score: {}".format(clf.best_score_))
