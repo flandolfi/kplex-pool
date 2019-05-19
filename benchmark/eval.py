@@ -49,6 +49,7 @@ if __name__ == "__main__":
         optimizer=torch.optim.Adam,
         optimizer__weight_decay=args.weight_decay,
         iterator_train=SkorchDataLoader,
+        iterator_train__shuffle=True,
         iterator_valid=SkorchDataLoader,
         dataset=SkorchDataset,
         callbacks=[

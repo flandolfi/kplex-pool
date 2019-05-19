@@ -7,7 +7,7 @@ class SkorchDataLoader(torch.utils.data.DataLoader):
     def __init__(self,
                  dataset,
                  batch_size=1,
-                 shuffle=True,
+                 shuffle=False,
                  follow_batch=[],
                  **kwargs):
         super(SkorchDataLoader, self).__init__(
