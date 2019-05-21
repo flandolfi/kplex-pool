@@ -32,6 +32,9 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--folds', type=int, default=5)
+    parser.add_argument('--max_k', type=int, default=16)
+    parser.add_argument('--max_layers', type=int, default=4)
+    parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
@@ -42,7 +45,6 @@ if __name__ == "__main__":
     net = NeuralNetClassifier(
         module=KPlexPool, 
         module__dataset=dataset,
-        module__hidden=args.hidden,
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         max_epochs=args.epochs,
@@ -64,12 +66,13 @@ if __name__ == "__main__":
     )
     
     net.set_params(callbacks__print_log=None)
+    ks = 2**np.arange(np.floor(np.log2(args.max_k)) + 1)
 
     params = {
-        'module__num_layers': [2, 3, 4],
-        # 'module__hidden': [32, 64, 128, 256],
-        'module__k': [4, 8, 16],
-        'module__k_step_factor': [0.5]
+        'module__num_layers': list(range(2, args.max_layers + 1)),
+        'module__hidden': [args.hidden],
+        'module__k': ks,
+        'module__k_step_factor': [args.k_step_factor]
     }
 
     clf = GridSearchCV(estimator=net, 
