@@ -66,7 +66,7 @@ if __name__ == "__main__":
     )
     
     net.set_params(callbacks__print_log=None)
-    ks = 2**np.arange(np.floor(np.log2(args.max_k)) + 1)
+    ks = 2**np.arange(np.floor(np.log2(args.max_k)) + 1).astype(int)
 
     params = {
         'module__num_layers': list(range(2, args.max_layers + 1)),
