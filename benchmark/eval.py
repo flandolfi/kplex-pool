@@ -32,9 +32,11 @@ if __name__ == "__main__":
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=0.5)
+    parser.add_argument('--graph_sage', action='store_true')
+    parser.add_argument('--normalize', action='store_true')
     args = parser.parse_args()
 
-    dataset = TUDataset(root='/tmp/' + args.dataset, name=args.dataset)
+    dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
 
     net = NeuralNetClassifier(
         module=KPlexPool, 
@@ -43,6 +45,8 @@ if __name__ == "__main__":
         module__hidden=args.hidden,
         module__k=args.k,
         module__k_step_factor=args.k_step_factor,
+        module__graph_sage=args.graph_sage,
+        module__normalize=args.normalize,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
