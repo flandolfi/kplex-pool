@@ -30,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay_step', type=int, default=50)
     parser.add_argument('--lr_decay_factor', type=float, default=0.5)
     parser.add_argument('--weight_decay', type=float, default=0.001)
+    parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--folds', type=int, default=5)
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
     args = parser.parse_args()
@@ -39,6 +40,7 @@ if __name__ == "__main__":
     net = NeuralNetClassifier(
         module=KPlexPool, 
         module__dataset=dataset,
+        module__hidden=args.hidden,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
@@ -61,7 +63,7 @@ if __name__ == "__main__":
 
     params = {
         'module__num_layers': [2, 3, 4],
-        'module__hidden': [32, 64, 128, 256],
+        # 'module__hidden': [32, 64, 128, 256],
         'module__k': [4, 8, 16],
         'module__k_step_factor': [0.5]
     }
