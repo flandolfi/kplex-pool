@@ -33,6 +33,8 @@ if __name__ == "__main__":
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--folds', type=int, default=5)
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
+    parser.add_argument('--graph_sage', action='store_true')
+    parser.add_argument('--normalize', action='store_true')
     args = parser.parse_args()
 
     dataset = TUDataset(root='/tmp/' + args.dataset, name=args.dataset)
@@ -41,6 +43,8 @@ if __name__ == "__main__":
         module=KPlexPool, 
         module__dataset=dataset,
         module__hidden=args.hidden,
+        module__graph_sage=args.graph_sage,
+        module__normalize=args.normalize,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
