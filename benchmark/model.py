@@ -3,7 +3,7 @@ from math import ceil
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear
-from torch_geometric.nn import GCNConv, SAGEConv, global_max_pool, global_add_pool
+from torch_geometric.nn import GCNConv, SAGEConv, global_max_pool, global_add_pool, global_mean_pool
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
@@ -83,11 +83,10 @@ class KPlexPool(torch.nn.Module):
             
             k = ceil(k*self.k_step_factor)
 
-            xs.append(global_add_pool(x, batch, batch_size))
+            xs.append(global_mean_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
         
         x = torch.cat(xs, dim=1)
-        x = F.normalize(x)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=0.3, training=self.training)
         x = self.lin2(x)
