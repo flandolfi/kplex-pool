@@ -2,12 +2,12 @@
 
 ## DD ##
 ```
-python -m benchmark.eval --dataset=DD --epochs=50 --lr=0.01 --lr_decay_step=25
+python -m benchmark.eval --dataset=DD --epochs=50 --lr=0.001
 ```
 
 ## PROTEINS ##
 ```
-python -m benchmark.eval --dataset=PROTEINS --epochs=200 --lr=0.005
+python -m benchmark.eval --dataset=PROTEINS --epochs=25 --lr=0.0025
 ```
 
 ## ENZYMES ##
