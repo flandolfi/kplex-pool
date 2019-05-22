@@ -2,7 +2,7 @@ from math import ceil
 
 import torch
 import torch.nn.functional as F
-from torch.nn import Linear
+from torch.nn import Linear, BatchNorm1d
 from torch_geometric.nn import GCNConv, SAGEConv, global_max_pool, global_add_pool, global_mean_pool
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
@@ -26,7 +26,8 @@ class KPlexPool(torch.nn.Module):
         
         for _ in range(num_layers - 1):
             self.blocks.append(conv(2 * hidden, hidden))
-        
+
+        self.bn = BatchNorm1d(2 * num_layers * hidden)
         self.lin1 = Linear(2 * num_layers * hidden, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
 
@@ -35,7 +36,8 @@ class KPlexPool(torch.nn.Module):
 
         for block in self.blocks:
             block.reset_parameters()
-            
+
+        self.bn.reset_parameters()            
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
     
@@ -87,6 +89,7 @@ class KPlexPool(torch.nn.Module):
             xs.append(global_max_pool(x, batch, batch_size))
         
         x = torch.cat(xs, dim=1)
+        x = self.bn(x)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=0.3, training=self.training)
         x = self.lin2(x)
