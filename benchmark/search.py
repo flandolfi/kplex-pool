@@ -15,7 +15,7 @@ from skorch import NeuralNetClassifier
 from skorch.dataset import CVSplit
 
 from benchmark.model import KPlexPool
-from kplex_pool.data import SkorchDataLoader, SkorchDataset
+from kplex_pool.data import SkorchDataLoader, SkorchDataset, preprocess_dateset
 
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 
@@ -38,6 +38,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+    X, y = preprocess_dateset(dataset)
 
     net = NeuralNetClassifier(
         module=KPlexPool, 
@@ -79,7 +80,7 @@ if __name__ == "__main__":
                        n_jobs=None,
                        verbose=3)
 
-    clf.fit(list(dataset), dataset.data.y.numpy())
+    clf.fit(X, y)
 
     print("Best score: {}".format(clf.best_score_))
     print("Best params: {}".format(clf.best_params_))

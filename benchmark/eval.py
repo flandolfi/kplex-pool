@@ -12,7 +12,7 @@ from skorch import NeuralNetClassifier
 from skorch.dataset import CVSplit
 
 from benchmark.model import KPlexPool
-from kplex_pool.data import SkorchDataLoader, SkorchDataset
+from kplex_pool.data import SkorchDataLoader, SkorchDataset, preprocess_dateset
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -34,6 +34,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+    X, y = preprocess_dateset(dataset)
 
     net = NeuralNetClassifier(
         module=KPlexPool, 
@@ -57,4 +58,4 @@ if __name__ == "__main__":
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
 
-    net.fit(list(dataset), dataset.data.y.numpy())
+    net.fit(X, y)
