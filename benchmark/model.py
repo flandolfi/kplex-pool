@@ -12,11 +12,17 @@ class KPlexPool(torch.nn.Module):
     def __init__(self, dataset, num_layers, hidden, k, k_step_factor=0.5, 
                  graph_sage=False, normalize=False, simplify=False):
         super(KPlexPool, self).__init__()
-        self.k = k
-        self.k_step_factor = k_step_factor
         self.simplify = simplify
         self.normalize = normalize
         self.graph_sage = graph_sage
+
+        if isinstance(k, list):
+            self.ks = k
+        else:
+            self.ks = [k]
+
+            for _ in range(1, num_layers):
+                self.ks.append(ceil(k_step_factor*self.ks[-1]))
 
         feat = 1 if dataset.data.x is None else dataset.num_features
         conv = SAGEConv if graph_sage else GCNConv
@@ -70,9 +76,7 @@ class KPlexPool(torch.nn.Module):
             global_max_pool(x, batch, batch_size)
         ]
 
-        k = self.k
-
-        for block in self.blocks:    
+        for block, k in zip(self.blocks, self.ks):    
             x, edge_index, weights, nodes, batch = self.pool_graphs(x, k, edge_index, weights, nodes, batch)
 
             if self.normalize:
@@ -82,8 +86,6 @@ class KPlexPool(torch.nn.Module):
                 x = F.relu(block(x, edge_index))
             else:
                 x = F.relu(block(x, edge_index, weights))
-            
-            k = ceil(k*self.k_step_factor)
 
             xs.append(global_mean_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
