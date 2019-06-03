@@ -29,6 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--folds', type=int, default=10)
+    parser.add_argument('--min_k', type=int, default=1)
     parser.add_argument('--max_k', type=int, default=16)
     parser.add_argument('--max_layers', type=int, default=4)
     parser.add_argument('--k_step_factor', type=float, default=0.5)
@@ -59,7 +60,8 @@ if __name__ == "__main__":
     )
     
     net.set_params(callbacks__print_log=None)
-    ks = 2**np.arange(np.floor(np.log2(args.max_k)) + 1).astype(int)
+    ks = 2**np.arange(np.floor(np.log2(args.min_k)),
+                      np.floor(np.log2(args.max_k)) + 1).astype(int)
 
     params = {
         'module__num_layers': list(range(2, args.max_layers + 1)),
