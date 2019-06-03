@@ -20,6 +20,8 @@ from sklearn.model_selection import StratifiedShuffleSplit
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='PROTEINS')
+    parser.add_argument('--cover_priority', type=str, default='min_degree')
+    parser.add_argument('--kplex_priority', type=str, default='max_in_kplex')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=0.001)
@@ -48,6 +50,8 @@ if __name__ == "__main__":
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         module__readout=args.no_readout,
+        module__cover_priority=args.cover_priority,
+        module__kplex_priority=args.kplex_priority,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,

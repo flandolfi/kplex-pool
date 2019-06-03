@@ -10,12 +10,14 @@ from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 class KPlexPool(torch.nn.Module):
     def __init__(self, dataset, hidden, k, k_step_factor=1, num_layers=2,
-                 readout=True, graph_sage=False, normalize=False, simplify=False):
+                 readout=True, graph_sage=False, normalize=False, simplify=False, 
+                 **cover_args):
         super(KPlexPool, self).__init__()
         self.simplify = simplify
         self.normalize = normalize
         self.graph_sage = graph_sage
         self.readout = readout
+        self.cover_args = cover_args
 
         if isinstance(k, list):
             self.ks = k
@@ -51,7 +53,8 @@ class KPlexPool(torch.nn.Module):
         self.lin2.reset_parameters()
     
     def pool_graphs(self, x, k, edge_index, weights, nodes, batch):
-        c_idx, clusters, batch = kplex_cover(edge_index, k, nodes, batch=batch)
+        c_idx, clusters, batch = kplex_cover(edge_index=edge_index, k=k, 
+                                             num_nodes=nodes, batch=batch, **self.cover_args)
         x_mean = cover_pool_node(c_idx, x, clusters, pool='add')
         x_max = cover_pool_node(c_idx, x, clusters, pool='max')
         x = torch.cat([x_mean, x_max], dim=1)
