@@ -36,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('--no_readout', action='store_false')
     args = parser.parse_args()
 
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
@@ -46,6 +47,7 @@ if __name__ == "__main__":
         module__dataset=dataset,
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
+        module__readout=args.no_readout,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
