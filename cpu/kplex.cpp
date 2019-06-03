@@ -25,7 +25,7 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
     std::unordered_set<int64_t> excluded({node});
     std::unordered_set<int64_t> kplex({node});
     std::unordered_map<int64_t, int64_t> missing_links({{node, 1}});
-    std::unordered_map<int64_t, int64_t> candidate_links({{node, 1}});
+    std::unordered_map<int64_t, int64_t> candidate_links;
     PriorityComparer<std::unordered_map<int64_t, int64_t>> ml_comparer(missing_links);
     PriorityComparer<std::unordered_map<int64_t, int64_t>> cl_comparer(candidate_links);
     Compare cmp = compare;
