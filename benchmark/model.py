@@ -9,15 +9,17 @@ from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
 
 
 class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, k, k_step_factor=0.5, 
-                 graph_sage=False, normalize=False, simplify=False):
+    def __init__(self, dataset, hidden, k, k_step_factor=1, num_layers=2,
+                 readout=True, graph_sage=False, normalize=False, simplify=False):
         super(KPlexPool, self).__init__()
         self.simplify = simplify
         self.normalize = normalize
         self.graph_sage = graph_sage
+        self.readout = readout
 
         if isinstance(k, list):
             self.ks = k
+            num_layers = len(k) + 1
         else:
             self.ks = [k]
 
@@ -33,8 +35,9 @@ class KPlexPool(torch.nn.Module):
         for _ in range(num_layers - 1):
             self.blocks.append(conv(2 * hidden, hidden))
 
-        self.bn = BatchNorm1d(2 * num_layers * hidden)
-        self.lin1 = Linear(2 * num_layers * hidden, hidden)
+        out_dim = 2 * num_layers * hidden if readout else 2 * hidden
+        self.bn = BatchNorm1d(out_dim)
+        self.lin1 = Linear(out_dim, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
@@ -89,6 +92,9 @@ class KPlexPool(torch.nn.Module):
 
             xs.append(global_mean_pool(x, batch, batch_size))
             xs.append(global_max_pool(x, batch, batch_size))
+        
+        if not self.readout:
+            xs = xs[-2:]
         
         x = torch.cat(xs, dim=1)
         x = self.bn(x)
