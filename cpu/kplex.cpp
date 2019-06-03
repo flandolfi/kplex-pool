@@ -9,7 +9,9 @@ enum class NodePriority {
     MIN_UNCOVERED, 
     MAX_UNCOVERED, 
     MIN_IN_KPLEX,
-    MAX_IN_KPLEX 
+    MAX_IN_KPLEX,
+    MIN_CANDIDATES,
+    MAX_CANDIDATES
 };
 
 /* From torch_cluster/cpu/utils.h by @rusty1s */
@@ -23,32 +25,58 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
     std::unordered_set<int64_t> excluded({node});
     std::unordered_set<int64_t> kplex({node});
     std::unordered_map<int64_t, int64_t> missing_links({{node, 1}});
-    PriorityComparer<std::unordered_map<int64_t, int64_t>> comparer(missing_links);
+    std::unordered_map<int64_t, int64_t> candidate_links({{node, 1}});
+    PriorityComparer<std::unordered_map<int64_t, int64_t>> ml_comparer(missing_links);
+    PriorityComparer<std::unordered_map<int64_t, int64_t>> cl_comparer(candidate_links);
     Compare cmp = compare;
 
     switch (kplex_priority) {
     case NodePriority::MAX_IN_KPLEX: 
-        cmp = comparer.get_less(); 
+        cmp = ml_comparer.get_less(); 
         break;
     
     case NodePriority::MIN_IN_KPLEX: 
-        cmp = comparer.get_greater(); 
+        cmp = ml_comparer.get_greater(); 
         break;
     
+    case NodePriority::MAX_CANDIDATES:
+        cmp = cl_comparer.get_greater();
+        break;
+
+    case NodePriority::MIN_CANDIDATES:
+        cmp = cl_comparer.get_less();
+        break;
+
     default:
         break;
     }
 
-    std::set<int64_t, Compare> candidates(cmp);
+    std::unordered_set<int64_t> candidates;
 
     for (auto n: neighbors[node]) {
         missing_links[n] = 0;
+
+        if (kplex_priority == NodePriority::MAX_CANDIDATES || 
+                kplex_priority == NodePriority::MIN_CANDIDATES) {
+            auto cl = 0;
+
+            for (auto cousin: neighbors[n]) {
+                if (candidates.count(cousin) > 0) {
+                    cl++;
+                    candidate_links[cousin]++;
+                }
+            }
+
+            candidate_links[n] = cl;
+        }
+
         candidates.insert(n);
     }
 
     while (!candidates.empty()) {
-        auto candidate = *(candidates.begin());
-        candidates.erase(candidates.begin());
+        auto min = std::min_element(candidates.begin(), candidates.end(), cmp);
+        auto candidate = *min;
+        candidates.erase(min);
         kplex.insert(candidate);
         excluded.insert(candidate);
         auto c_neighbors = neighbors[candidate];
@@ -62,11 +90,19 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
                 missing_links[n] += 1;
 
                 if (missing_links[n] == k) {
-                    for (auto c: candidates) {
-                        if (!neighbors[n].count(c)) {
-                            excluded.insert(c);
-                            candidates.erase(c);
-                        }
+                    for (auto it = candidates.begin(); it != candidates.end();) {
+                        if (!neighbors[n].count(*it)) {
+                            excluded.insert(*it);
+
+                            if (kplex_priority == NodePriority::MAX_CANDIDATES || 
+                                    kplex_priority == NodePriority::MIN_CANDIDATES) 
+                                for (auto cousin: neighbors[*it]) 
+                                    if (candidates.count(cousin) > 0) 
+                                        candidate_links[cousin]--;
+
+                            it = candidates.erase(it);
+                        } else
+                            ++it;                        
                     }
                 }
             }
@@ -74,27 +110,22 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
 
         // For each candidate, update the 'missing_links' counter. If it is
         // greater than k, remove it.
-        auto n = candidates.begin();
-        std::vector<int64_t> to_replace;
+        for (auto it = candidates.begin(); it != candidates.end();) {
+            if (!c_neighbors.count(*it) && ++missing_links[*it] >= k) {
+                excluded.insert(*it);
 
-        while (n != candidates.end()) {
-            if (!c_neighbors.count(*n)) {
-                auto v = missing_links[*n] + 1;
-
-                if (v >= k) {
-                    excluded.insert(*n);
-                } else {
-                    to_replace.push_back(*n);
-                }
+                if (kplex_priority == NodePriority::MAX_CANDIDATES || 
+                        kplex_priority == NodePriority::MIN_CANDIDATES) 
+                    for (auto cousin: neighbors[*it]) 
+                        if (candidates.count(cousin) > 0) 
+                            candidate_links[cousin]--;
                 
-                auto old_node = *n;
-                n = candidates.erase(n);
-                missing_links[old_node] = v;
-            } else 
-                ++n;
-        }
+                it = candidates.erase(it);
+                continue;
+            } 
 
-        candidates.insert(to_replace.begin(), to_replace.end());
+            ++it;
+        }
 
         // Add the neighbors of the new k-plex element to the candidate set, if
         // they have not been already excluded nor are already candidates.
@@ -109,6 +140,20 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
                 if (v < k) {
                     missing_links[n] = v;
                     candidates.insert(n);
+
+                    if (kplex_priority == NodePriority::MAX_CANDIDATES || 
+                            kplex_priority == NodePriority::MIN_CANDIDATES) {
+                        auto cl = 0;
+
+                        for (auto cousin: cousins) {
+                            if (candidates.count(cousin) > 0) {
+                                cl++;
+                                candidate_links[cousin]++;
+                            }
+                        }
+
+                        candidate_links[n] = cl;
+                    }
                 } else {
                     excluded.insert(n);
                 }
@@ -251,5 +296,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .value("max_uncovered", NodePriority::MAX_UNCOVERED)
         .value("min_in_kplex", NodePriority::MIN_IN_KPLEX)
         .value("max_in_kplex", NodePriority::MAX_IN_KPLEX)
+        .value("min_candidates", NodePriority::MIN_CANDIDATES)
+        .value("max_candidates", NodePriority::MAX_CANDIDATES)
         .export_values();
 }
