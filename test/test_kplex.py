@@ -8,7 +8,7 @@ from kplex_pool.kplex_cpu import NodePriority
 devices = [torch.device('cpu')]
 
 kplex_priorities = list(NodePriority.__members__.keys())
-cover_priorities = kplex_priorities[:-4]
+cover_priorities = kplex_priorities[:-5]
 
 if torch.cuda.is_available():
     devices += [torch.device('cuda:{}'.format(torch.cuda.current_device()))]

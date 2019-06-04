@@ -2,8 +2,8 @@ import torch
 from kplex_pool import kplex_cpu
 
 
-def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree", 
-                kplex_priority="max_in_kplex", batch=None):
+def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_uncovered", 
+                kplex_priority="composite", batch=None):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
     k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
     device = edge_index.device

@@ -11,7 +11,8 @@ enum class NodePriority {
     MIN_IN_KPLEX,
     MAX_IN_KPLEX,
     MIN_CANDIDATES,
-    MAX_CANDIDATES
+    MAX_CANDIDATES,
+    COMPOSITE
 };
 
 /* From torch_cluster/cpu/utils.h by @rusty1s */
@@ -20,17 +21,23 @@ std::tuple<at::Tensor, at::Tensor> remove_self_loops(at::Tensor row, at::Tensor 
     return std::make_tuple(row.masked_select(mask), col.masked_select(mask));
 }
 
-std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int64_t>>& neighbors, 
-        int64_t node, int64_t k, int64_t num_nodes, NodePriority kplex_priority, const Compare& compare) {
+std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int64_t>>& neighbors, int64_t node, 
+        int64_t k, int64_t num_nodes, NodePriority kplex_priority, std::vector<int64_t>& priorities) {
     std::unordered_set<int64_t> excluded({node});
     std::unordered_set<int64_t> kplex({node});
     std::unordered_map<int64_t, int64_t> missing_links({{node, 1}});
     std::unordered_map<int64_t, int64_t> candidate_links;
     PriorityComparer<std::unordered_map<int64_t, int64_t>> ml_comparer(missing_links);
     PriorityComparer<std::unordered_map<int64_t, int64_t>> cl_comparer(candidate_links);
-    Compare cmp = compare;
+    PriorityComparer<std::vector<int64_t>> default_comparer(priorities);
+    Compare cmp = default_comparer.get_less();
 
     switch (kplex_priority) {
+    case NodePriority::MAX_DEGREE:
+    case NodePriority::MAX_UNCOVERED:
+        cmp = default_comparer.get_greater();
+        break;
+    
     case NodePriority::MAX_IN_KPLEX: 
         cmp = ml_comparer.get_less(); 
         break;
@@ -47,6 +54,12 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
         cmp = cl_comparer.get_less();
         break;
 
+    case NodePriority::COMPOSITE:
+        cl_comparer.set_default(ml_comparer.get_less());
+        default_comparer.set_default(cl_comparer.get_greater());
+        cmp = default_comparer.get_less();
+        break;
+
     default:
         break;
     }
@@ -55,25 +68,29 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
 
     for (auto n: neighbors[node]) {
         missing_links[n] = 0;
-
-        if (kplex_priority == NodePriority::MAX_CANDIDATES || 
-                kplex_priority == NodePriority::MIN_CANDIDATES) {
-            auto cl = 0;
-
-            for (auto cousin: neighbors[n]) {
-                if (candidates.count(cousin) > 0) {
-                    cl++;
-                    candidate_links[cousin]++;
-                }
-            }
-
-            candidate_links[n] = cl;
-        }
-
         candidates.insert(n);
     }
 
     while (!candidates.empty()) {
+        if (kplex_priority == NodePriority::MAX_CANDIDATES
+                || kplex_priority == NodePriority::MIN_CANDIDATES
+                || kplex_priority == NodePriority::COMPOSITE) {
+            candidate_links.clear();
+            
+            for (auto c: candidates) {
+                auto cl = 0;
+
+                for (auto cousin: neighbors[c]) {
+                    if (candidates.count(cousin) > 0) {
+                        cl++;
+                        candidate_links[cousin]++;
+                    }
+                }
+
+                candidate_links[c] = cl;
+            }
+        }
+
         auto min = std::min_element(candidates.begin(), candidates.end(), cmp);
         auto candidate = *min;
         candidates.erase(min);
@@ -93,13 +110,6 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
                     for (auto it = candidates.begin(); it != candidates.end();) {
                         if (!neighbors[n].count(*it)) {
                             excluded.insert(*it);
-
-                            if (kplex_priority == NodePriority::MAX_CANDIDATES || 
-                                    kplex_priority == NodePriority::MIN_CANDIDATES) 
-                                for (auto cousin: neighbors[*it]) 
-                                    if (candidates.count(cousin) > 0) 
-                                        candidate_links[cousin]--;
-
                             it = candidates.erase(it);
                         } else
                             ++it;                        
@@ -113,18 +123,9 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
         for (auto it = candidates.begin(); it != candidates.end();) {
             if (!c_neighbors.count(*it) && ++missing_links[*it] >= k) {
                 excluded.insert(*it);
-
-                if (kplex_priority == NodePriority::MAX_CANDIDATES || 
-                        kplex_priority == NodePriority::MIN_CANDIDATES) 
-                    for (auto cousin: neighbors[*it]) 
-                        if (candidates.count(cousin) > 0) 
-                            candidate_links[cousin]--;
-                
                 it = candidates.erase(it);
-                continue;
-            } 
-
-            ++it;
+            } else
+                ++it;
         }
 
         // Add the neighbors of the new k-plex element to the candidate set, if
@@ -140,20 +141,6 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
                 if (v < k) {
                     missing_links[n] = v;
                     candidates.insert(n);
-
-                    if (kplex_priority == NodePriority::MAX_CANDIDATES || 
-                            kplex_priority == NodePriority::MIN_CANDIDATES) {
-                        auto cl = 0;
-
-                        for (auto cousin: cousins) {
-                            if (candidates.count(cousin) > 0) {
-                                cl++;
-                                candidate_links[cousin]++;
-                            }
-                        }
-
-                        candidate_links[n] = cl;
-                    }
                 } else {
                     excluded.insert(n);
                 }
@@ -169,9 +156,12 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
     std::tie(row, col) = remove_self_loops(row, col);
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);
     auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>();
-    Compare cover_cmp, kplex_cmp; 
-    std::vector<int64_t> random_p(num_nodes), uncovered_p(num_nodes), degree_p(num_nodes);
-    PriorityComparer<std::vector<int64_t>> random_cmp(random_p), degree_cmp(degree_p), uncovered_cmp(uncovered_p);
+    Compare cover_cmp; 
+    std::vector<int64_t> random_p(num_nodes), uncovered_p(num_nodes), 
+        degree_p(num_nodes), covered_nodes(num_nodes);
+    std::vector<int64_t> *kplex_priorities;
+    PriorityComparer<std::vector<int64_t>> random_cmp(random_p), degree_cmp(degree_p), 
+        uncovered_cmp(uncovered_p), default_cmp(covered_nodes);
 
     for (auto i = 0; i < row.size(0); i++) {
         neighbors[row_acc[i]].insert(col_acc[i]);
@@ -211,32 +201,26 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
 
     switch (kplex_priority) {
     case NodePriority::RANDOM: 
-        kplex_cmp = random_cmp.get_less(); 
+        kplex_priorities = &random_p; 
         break;
     
-    case NodePriority::MAX_DEGREE: 
-        kplex_cmp = degree_cmp.get_greater(); 
-        break;
-    
+    case NodePriority::MAX_DEGREE:     
     case NodePriority::MIN_DEGREE: 
-        kplex_cmp = degree_cmp.get_less(); 
+        kplex_priorities = &degree_p; 
         break;
     
     case NodePriority::MAX_UNCOVERED: 
-        kplex_cmp = uncovered_cmp.get_greater(); 
-        break;
-    
     case NodePriority::MIN_UNCOVERED: 
-        kplex_cmp = uncovered_cmp.get_less(); 
+        kplex_priorities = &uncovered_p; 
         break;
     
     default:
+        kplex_priorities = &covered_nodes; 
         break;
     }
 
     std::set<int64_t, Compare> candidates(cover_cmp);
     std::vector<std::unordered_set<int64_t>> cover;
-    std::unordered_set<int64_t> covered_nodes;
     int64_t output_dim = 0;
 
     for (auto i = 0; i < num_nodes; ++i) {
@@ -247,14 +231,14 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
         auto candidate = *(candidates.begin());
         candidates.erase(candidate);
 
-        auto kplex = find_kplex(neighbors, candidate, k, num_nodes, kplex_priority, kplex_cmp);
+        auto kplex = find_kplex(neighbors, candidate, k, num_nodes, kplex_priority, *kplex_priorities);
         output_dim += kplex.size();
 
         for (auto node: kplex) {
             candidates.erase(node);
 
             if ((cover_priority == NodePriority::MAX_UNCOVERED || cover_priority == NodePriority::MIN_UNCOVERED) 
-                    && covered_nodes.count(node) == 0) {
+                    && covered_nodes[node] == 0) {
                 for (auto cousin: neighbors[node]) {
                     if (candidates.count(cousin) > 0) {
                         candidates.erase(cousin);
@@ -263,7 +247,7 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
                     }
                 }
 
-                covered_nodes.insert(node);
+                covered_nodes[node] = 1;
             }
         }
 
@@ -298,5 +282,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .value("max_in_kplex", NodePriority::MAX_IN_KPLEX)
         .value("min_candidates", NodePriority::MIN_CANDIDATES)
         .value("max_candidates", NodePriority::MAX_CANDIDATES)
+        .value("composite", NodePriority::COMPOSITE)
         .export_values();
 }
