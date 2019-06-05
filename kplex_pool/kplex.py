@@ -3,7 +3,7 @@ from kplex_pool import kplex_cpu
 
 
 def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_uncovered", 
-                kplex_priority="composite", batch=None):
+                kplex_priority="min_uncovered", skip_covered=True, batch=None):
     c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
     k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
     device = edge_index.device
@@ -37,9 +37,10 @@ def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_uncovered",
         c = c.masked_select(edge_mask).cpu()
 
         index = kplex_cpu.kplex_cover(r, c, k, 
-                                        batch_nodes[-1].item() - min_index + 1, 
-                                        c_priority, 
-                                        k_priority)
+                                      batch_nodes[-1].item() - min_index + 1, 
+                                      c_priority, 
+                                      k_priority,
+                                      skip_covered)
 
         index[0].add_(min_index)
         clusters = index[1].max().item() + 1
