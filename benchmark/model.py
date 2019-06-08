@@ -79,7 +79,7 @@ class KPlexPool(torch.nn.Module):
     
     def pool_graphs(self, index, level, k, x, edge_index, weights, nodes, batch):
         if self.cache_results:
-            cache = [self.cache[level][i] for i in index]
+            cache = [self.cache[level][i.item()] for i in index]
             graphs = []
             cover = []
             nodes = 0
@@ -119,8 +119,7 @@ class KPlexPool(torch.nn.Module):
         return Batch.from_data_list(data_list)
 
     def forward(self, index):
-        index = index.type(torch.long)
-        data = self.collate(self.dataset[index])
+        data = self.collate([self.dataset[i.item()] for i in index])
 
         nodes = data.num_nodes
         edge_index = data.edge_index
