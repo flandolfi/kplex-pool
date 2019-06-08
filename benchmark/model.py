@@ -119,6 +119,7 @@ class KPlexPool(torch.nn.Module):
         return Batch.from_data_list(data_list)
 
     def forward(self, index):
+        index = index.type(torch.long)
         data = self.collate(self.dataset[index])
 
         nodes = data.num_nodes
