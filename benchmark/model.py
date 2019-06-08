@@ -98,9 +98,9 @@ class KPlexPool(torch.nn.Module):
 
             c_idx = torch.cat(cover, dim=1)
             data = self.collate(graphs)
-            edge_index = data.edge_index
-            weights = data.edge_attr
-            batch = data.batch
+            edge_index = data.edge_index.to(edge_index.device)
+            weights = data.edge_attr.to(edge_index.device)
+            batch = data.batch.to(edge_index.device)
         else:
             c_idx, clusters, batch = kplex_cover(edge_index=edge_index, k=k, 
                                                 num_nodes=nodes, batch=batch, **self.cover_args)
