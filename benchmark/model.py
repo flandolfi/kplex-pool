@@ -47,6 +47,7 @@ class KPlexPool(torch.nn.Module):
         self.lin2 = Linear(hidden, dataset.num_classes)
 
         if self.cache_results:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
             self.cache = [[(None, G) for G in self.dataset]]
 
             for k in self.ks:
@@ -61,7 +62,8 @@ class KPlexPool(torch.nn.Module):
                     if self.simplify:
                         edge_index, weights = simplify(edge_index, weights, num_nodes=clusters)
                     
-                    current.append((c_idx, Data(edge_index=edge_index, edge_attr=weights, num_nodes=clusters)))
+                    current.append((c_idx.to(device), 
+                                    Data(edge_index=edge_index, edge_attr=weights, num_nodes=clusters).to(device)))
                 
                 self.cache.append(current)
             
@@ -98,9 +100,9 @@ class KPlexPool(torch.nn.Module):
 
             c_idx = torch.cat(cover, dim=1)
             data = self.collate(graphs)
-            edge_index = data.edge_index.to(edge_index.device)
-            weights = data.edge_attr.to(edge_index.device)
-            batch = data.batch.to(edge_index.device)
+            edge_index = data.edge_index
+            weights = data.edge_attr
+            batch = data.batch
         else:
             c_idx, clusters, batch = kplex_cover(edge_index=edge_index, k=k, 
                                                 num_nodes=nodes, batch=batch, **self.cover_args)
