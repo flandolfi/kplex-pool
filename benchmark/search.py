@@ -35,8 +35,8 @@ if __name__ == "__main__":
     parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--min_k', type=int, default=1)
     parser.add_argument('--max_k', type=int, default=16)
-    parser.add_argument('--max_layers', type=int, default=4)
-    parser.add_argument('--k_step_factor', type=float, default=0.5)
+    parser.add_argument('--min_layers', type=int, default=3)
+    parser.add_argument('--max_layers', type=int, default=5)
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
@@ -82,10 +82,10 @@ if __name__ == "__main__":
                       np.floor(np.log2(args.max_k)) + 1).astype(int)
 
     params = {
-        'module__num_layers': list(range(2, args.max_layers + 1)),
+        'module__num_layers': list(range(args.min_layers, args.max_layers + 1)),
         'module__hidden': [args.hidden],
         'module__k': ks,
-        'module__k_step_factor': [args.k_step_factor]
+        'module__k_step_factor': [1, 0.5]
     }
 
     clf = GridSearchCV(estimator=net, 
@@ -94,7 +94,6 @@ if __name__ == "__main__":
                                           shuffle=True, 
                                           random_state=42), 
                        refit=False, 
-                       iid=False, 
                        scoring='accuracy', 
                        return_train_score=False,
                        n_jobs=None,
