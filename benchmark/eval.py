@@ -35,8 +35,8 @@ if __name__ == "__main__":
     parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('--skip_covered', action='store_true')
     parser.add_argument('--no_readout', action='store_false')
-    parser.add_argument('--no_skip', action='store_false')
     parser.add_argument('--no_cache', action='store_false')
     parser.add_argument('--ks', nargs='*', type=int)
     args = parser.parse_args()
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         module__readout=args.no_readout,
-        module__skip_covered=args.no_skip,
+        module__skip_covered=args.skip_covered,
         module__cache_results=args.no_cache,
         module__cover_priority=args.cover_priority,
         module__kplex_priority=args.kplex_priority,
