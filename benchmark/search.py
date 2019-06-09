@@ -60,7 +60,7 @@ if __name__ == "__main__":
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         module__readout=args.no_readout,
-        module__skip_covered=args.no_skip,
+        module__skip_covered=args.skip_covered,
         module__cache_results=args.no_cache,
         module__cover_priority=args.cover_priority,
         module__kplex_priority=args.kplex_priority,
