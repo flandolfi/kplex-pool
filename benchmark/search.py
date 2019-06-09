@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--no_readout', action='store_false')
     parser.add_argument('--no_skip', action='store_false')
+    parser.add_argument('--no_cache', action='store_false')
     args = parser.parse_args()
 
     torch.manual_seed(42)
