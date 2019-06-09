@@ -41,6 +41,11 @@ if __name__ == "__main__":
     parser.add_argument('--ks', nargs='*', type=int)
     args = parser.parse_args()
 
+    torch.manual_seed(42)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+    
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
     X = np.arange(len(dataset)).reshape((-1, 1))
     y = dataset.data.y.numpy()
