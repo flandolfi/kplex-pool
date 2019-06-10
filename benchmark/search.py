@@ -36,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_k', type=int, default=1)
     parser.add_argument('--max_k', type=int, default=16)
     parser.add_argument('--min_layers', type=int, default=2)
-    parser.add_argument('--max_layers', type=int, default=4)
+    parser.add_argument('--max_layers', type=int, default=5)
     parser.add_argument('--to_pickle', type=str, default='results.pickle')
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
