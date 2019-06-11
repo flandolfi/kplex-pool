@@ -8,7 +8,7 @@ def kplex_cover(edge_index, k, num_nodes=None, cover_priority="default",
         cover_priority = ["min_uncovered", "min_degree"]
 
     if kplex_priority == "default":
-        kplex_priority = ["max_in_kplex", "max_candidates", "min_uncovered", "random"]
+        kplex_priority = ["max_in_kplex", "max_candidates", "min_uncovered"]
 
     if not isinstance(cover_priority, list):
         cover_priority = [cover_priority]
