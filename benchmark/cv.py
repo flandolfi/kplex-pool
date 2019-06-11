@@ -2,13 +2,10 @@ from itertools import product
 import sys
 import argparse
 import numpy as np
-import pandas as pd
 
 import torch
 
 from torch_geometric.datasets import TUDataset
-
-import json
 
 import skorch
 from skorch import NeuralNetClassifier
@@ -16,7 +13,7 @@ from skorch.dataset import CVSplit
 
 from benchmark.model import KPlexPool
 
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.model_selection import cross_val_score
 
 
 if __name__ == "__main__":
@@ -31,18 +28,17 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--weight_decay', type=float, default=0.001)
-    parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--folds', type=int, default=10)
-    parser.add_argument('--min_k', type=int, default=1)
-    parser.add_argument('--max_k', type=int, default=16)
-    parser.add_argument('--min_layers', type=int, default=2)
-    parser.add_argument('--max_layers', type=int, default=5)
-    parser.add_argument('--to_pickle', type=str, default='results.pickle')
+    parser.add_argument('--layers', type=int, default=3)
+    parser.add_argument('--hidden', type=int, default=64)
+    parser.add_argument('--k', type=int, default=8)
+    parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--skip_covered', action='store_true')
     parser.add_argument('--no_readout', action='store_false')
     parser.add_argument('--no_cache', action='store_false')
+    parser.add_argument('--ks', nargs='*', type=int)
     args = parser.parse_args()
 
     torch.manual_seed(42)
@@ -57,6 +53,10 @@ if __name__ == "__main__":
     net = NeuralNetClassifier(
         module=KPlexPool, 
         module__dataset=dataset,
+        module__num_layers=args.layers,
+        module__hidden=args.hidden,
+        module__k=args.k if args.ks is None else args.ks,
+        module__k_step_factor=args.k_step_factor,
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         module__readout=args.no_readout,
@@ -76,32 +76,6 @@ if __name__ == "__main__":
         train_split=None,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
-    
-    net.set_params(callbacks__print_log=None)
-    ks = 2**np.arange(np.floor(np.log2(args.min_k)),
-                      np.floor(np.log2(args.max_k)) + 1).astype(int)
 
-    params = {
-        'module__num_layers': list(range(args.min_layers, args.max_layers + 1)),
-        'module__hidden': [args.hidden],
-        'module__k': ks,
-        'module__k_step_factor': [1, 0.5]
-    }
-
-    clf = GridSearchCV(estimator=net, 
-                       param_grid=params, 
-                       cv=StratifiedKFold(n_splits=args.folds, 
-                                          shuffle=True, 
-                                          random_state=42), 
-                       refit=False, 
-                       scoring='accuracy', 
-                       return_train_score=False,
-                       n_jobs=None,
-                       verbose=3)
-
-    clf.fit(X, y)
-
-    print("Best score: {}".format(clf.best_score_))
-    print("Best params: {}".format(clf.best_params_))
-
-    pd.DataFrame(clf.cv_results_).to_pickle(args.to_pickle)
+    results = 100.*cross_val_score(net, X, y, cv=args.folds, scoring='accuracy', verbose=10)
+    print("\nAccuracy: {:.2f} ± {:.2f}".format(results.mean(), results.std()))

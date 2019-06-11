@@ -12,7 +12,6 @@ from skorch import NeuralNetClassifier
 from skorch.dataset import CVSplit
 
 from benchmark.model import KPlexPool
-from kplex_pool.data import SkorchDataLoader, SkorchDataset, preprocess_dateset
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -22,6 +21,9 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--cover_priority', type=str, default='min_degree')
     parser.add_argument('--kplex_priority', type=str, default='max_in_kplex')
+    parser.add_argument('--global_pool_op', type=str, default='mean')
+    parser.add_argument('--node_pool_op', type=str, default='add')
+    parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=0.001)
@@ -33,13 +35,20 @@ if __name__ == "__main__":
     parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--graph_sage', action='store_true')
     parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('--skip_covered', action='store_true')
     parser.add_argument('--no_readout', action='store_false')
-    parser.add_argument('--no_skip', action='store_false')
+    parser.add_argument('--no_cache', action='store_false')
     parser.add_argument('--ks', nargs='*', type=int)
     args = parser.parse_args()
 
+    torch.manual_seed(42)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+    
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
-    X, y = preprocess_dateset(dataset)
+    X = np.arange(len(dataset)).reshape((-1, 1))
+    y = dataset.data.y.numpy()
 
     net = NeuralNetClassifier(
         module=KPlexPool, 
@@ -51,18 +60,19 @@ if __name__ == "__main__":
         module__graph_sage=args.graph_sage,
         module__normalize=args.normalize,
         module__readout=args.no_readout,
-        module__skip_covered=args.no_skip,
+        module__skip_covered=args.skip_covered,
+        module__cache_results=args.no_cache,
         module__cover_priority=args.cover_priority,
         module__kplex_priority=args.kplex_priority,
+        module__global_pool_op=args.global_pool_op,
+        module__node_pool_op=args.node_pool_op,
+        module__edge_pool_op=args.edge_pool_op,
         max_epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
         optimizer=torch.optim.Adam,
         optimizer__weight_decay=args.weight_decay,
-        iterator_train=SkorchDataLoader,
         iterator_train__shuffle=True,
-        iterator_valid=SkorchDataLoader,
-        dataset=SkorchDataset,
         train_split=CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42)),
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
