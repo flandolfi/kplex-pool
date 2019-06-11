@@ -2,18 +2,44 @@ import torch
 from kplex_pool import kplex_cpu
 
 
-def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree", 
-                kplex_priority="max_in_kplex", skip_covered=False, batch=None):
-    c_priority = getattr(kplex_cpu.NodePriority, cover_priority, None)
-    k_priority = getattr(kplex_cpu.NodePriority, kplex_priority, None)
+def kplex_cover(edge_index, k, num_nodes=None, cover_priority="default", 
+                kplex_priority="default", skip_covered=False, batch=None):
+    if cover_priority == "default":
+        cover_priority = ["min_uncovered", "min_degree"]
+
+    if kplex_priority == "default":
+        kplex_priority = ["max_in_kplex", "max_candidates", "min_uncovered", "random"]
+
+    if not isinstance(cover_priority, list):
+        cover_priority = [cover_priority]
+
+    if not isinstance(kplex_priority, list):
+        kplex_priority = [kplex_priority]
+        
+    cps = []
+    kps = []
     device = edge_index.device
 
-    if c_priority is None or c_priority is kplex_cpu.NodePriority.max_in_kplex \
-            or c_priority is kplex_cpu.NodePriority.min_in_kplex:
-        raise ValueError('Not a valid priority: %s' % cover_priority)
+    for p in cover_priority:
+        cp = getattr(kplex_cpu.NodePriority, p, None)
+
+        if cp is None or cp in {
+                    kplex_cpu.NodePriority.max_in_kplex,
+                    kplex_cpu.NodePriority.min_in_kplex,
+                    kplex_cpu.NodePriority.max_candidates,
+                    kplex_cpu.NodePriority.min_candidates
+                }:
+            raise ValueError('Not a valid priority: %s' % p)
         
-    if k_priority is None:
-        raise ValueError('Not a valid priority: %s' % kplex_priority)
+        cps.append(cp)
+        
+    for p in kplex_priority:
+        kp = getattr(kplex_cpu.NodePriority, p, None)
+
+        if kp is None:
+            raise ValueError('Not a valid priority: %s' % p)
+        
+        kps.append(kp)
 
     if num_nodes is None:
         num_nodes = edge_index.max().item() + 1
@@ -38,9 +64,7 @@ def kplex_cover(edge_index, k, num_nodes=None, cover_priority="min_degree",
 
         index = kplex_cpu.kplex_cover(r, c, k, 
                                       batch_nodes[-1].item() - min_index + 1, 
-                                      c_priority, 
-                                      k_priority,
-                                      skip_covered)
+                                      cps, kps, skip_covered)
 
         index[0].add_(min_index)
         clusters = index[1].max().item() + 1
