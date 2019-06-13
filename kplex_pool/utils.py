@@ -28,7 +28,7 @@ def count_duplicates(cover_index: torch.LongTensor, normalize=False):
     return duplicates
 
 def coverage(cover_index_list):
-    last_idx = cover_index_list[0]
+    last_idx = cover_index_list[0].clone()
     last_val = torch.ones_like(last_idx[0], dtype=torch.float)
     num_nodes = last_idx[0].max().item() + 1
     num_clusters = last_idx[1].max().item() + 1
