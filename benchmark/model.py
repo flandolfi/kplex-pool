@@ -14,7 +14,7 @@ from tqdm import tqdm
 class KPlexPool(torch.nn.Module):
     def __init__(self, dataset, hidden, k, k_step_factor=1, num_layers=2,
                  readout=True, graph_sage=False, normalize=False, simplify=False, 
-                 cache_results=True, global_pool_op='mean', node_pool_op='add',
+                 cache_results=True, global_pool_op='add', node_pool_op='add',
                  edge_pool_op='add', **cover_args):
         super(KPlexPool, self).__init__()
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
