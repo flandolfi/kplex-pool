@@ -5,7 +5,7 @@ from kplex_pool import kplex_cpu
 def kplex_cover(edge_index, k, num_nodes=None, cover_priority="default", 
                 kplex_priority="default", skip_covered=False, batch=None):
     if cover_priority == "default":
-        cover_priority = ["min_uncovered", "min_degree"]
+        cover_priority = ["min_degree", "min_uncovered"]
 
     if kplex_priority == "default":
         kplex_priority = ["max_in_kplex", "max_candidates", "min_uncovered"]
