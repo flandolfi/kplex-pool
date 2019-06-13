@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--cover_priority', type=str, default='min_degree')
     parser.add_argument('--kplex_priority', type=str, default='max_in_kplex')
-    parser.add_argument('--global_pool_op', type=str, default='mean')
+    parser.add_argument('--global_pool_op', type=str, default='add')
     parser.add_argument('--node_pool_op', type=str, default='add')
     parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--epochs', type=int, default=100)
