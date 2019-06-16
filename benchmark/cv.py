@@ -13,7 +13,7 @@ from skorch.dataset import CVSplit
 
 from benchmark.model import KPlexPool
 
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, StratifiedKFold
 
 
 if __name__ == "__main__":
@@ -77,5 +77,11 @@ if __name__ == "__main__":
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
 
-    results = 100.*cross_val_score(net, X, y, cv=args.folds, scoring='accuracy', verbose=10)
+    net.set_params(callbacks__print_log=None)
+    results = 100.*cross_val_score(net, X, y, 
+                                   cv=StratifiedKFold(n_splits=args.folds, 
+                                                      shuffle=True, 
+                                                      random_state=42), 
+                                   scoring='accuracy', 
+                                   verbose=10)
     print("\nAccuracy: {:.2f} ± {:.2f}".format(results.mean(), results.std()))
