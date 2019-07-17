@@ -82,6 +82,7 @@ if __name__ == "__main__":
                                    cv=StratifiedKFold(n_splits=args.folds, 
                                                       shuffle=True, 
                                                       random_state=42), 
-                                   scoring='accuracy', 
+                                   scoring='accuracy',
+                                   error_score=np.nan, 
                                    verbose=10)
     print("\nAccuracy: {:.2f} ± {:.2f}".format(results.mean(), results.std()))
