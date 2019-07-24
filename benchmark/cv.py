@@ -63,7 +63,7 @@ if __name__ == "__main__":
         optimizer=torch.optim.Adam,
         optimizer__weight_decay=args.weight_decay,
         iterator_train__shuffle=True,
-        train_split=CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42)),
+        train_split=None,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
 
