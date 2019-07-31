@@ -67,7 +67,7 @@ if __name__ == "__main__":
         'max_epochs': args.epochs,
         'batch_size': args.batch_size,
         'lr': args.lr,
-        'criterion': model.PoolLoss if args.model == 'DiffPool' else torch.nn.modules.loss.BCEWithLogitsLoss,
+        'criterion': model.PoolLoss if args.model == 'DiffPool' else torch.nn.modules.loss.NLLLoss,
         'optimizer': torch.optim.Adam,
         'optimizer__weight_decay': args.weight_decay,
         'iterator_train__shuffle': True,
