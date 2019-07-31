@@ -109,7 +109,7 @@ pool_edges(at::Tensor index_row, at::Tensor index_col, at::Tensor row, at::Tenso
         }
     });
 
-    return {out_row, out_col, out_weight};
+    return std::make_tuple(out_row, out_col, out_weight);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

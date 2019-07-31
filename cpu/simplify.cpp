@@ -30,7 +30,7 @@ simplify_cutoff(at::Tensor row, at::Tensor col, at::Tensor weight, int64_t num_n
         }
     });
 
-    return {row.slice(0, 0, i), col.slice(0, 0, i), weight.slice(0, 0, i)};
+    return std::make_tuple(row.slice(0, 0, i), col.slice(0, 0, i), weight.slice(0, 0, i));
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
