@@ -269,6 +269,7 @@ class DiffPool(torch.nn.Module):
         self.embed_blocks = torch.nn.ModuleList()
         self.pool_blocks = torch.nn.ModuleList()
         self.embed_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
+        self.pool_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
 
         for _ in range(num_layers - 1):
             self.embed_blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
@@ -276,7 +277,7 @@ class DiffPool(torch.nn.Module):
             num_nodes = ceil(ratio * num_nodes)
 
         self.jump = JumpingKnowledge(mode='cat')
-        self.lin1 = Linear(len(self.embed_blocks) * hidden * 2, hidden)
+        self.lin1 = Linear(num_layers * hidden * 2, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
@@ -304,14 +305,14 @@ class DiffPool(torch.nn.Module):
 
         s = self.pool_blocks[0](x, adj, mask=mask, add_loop=True)
         x = F.relu(self.embed_blocks[0](x, adj, mask=mask, add_loop=True))
-        xs = [x.sum(dim=1), x.max(dim=1)]
+        xs = [x.sum(dim=1), x.max(dim=1)[0]]
         x, adj, link_loss, ent_loss = dense_diff_pool(x, adj, s, mask)
 
         for i, (embed_block, pool_block) in enumerate(
                 zip(self.embed_blocks[1:], self.pool_blocks[1:])):
             s = pool_block(x, adj)
             x = F.relu(embed_block(x, adj))
-            xs.extend([x.sum(dim=1), x.max(dim=1)])
+            xs.extend([x.sum(dim=1), x.max(dim=1)[0]])
 
             if i < len(self.embed_blocks) - 1:
                 x, adj, l, e = dense_diff_pool(x, adj, s)
@@ -327,6 +328,21 @@ class DiffPool(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
+
+class PoolLoss(torch.nn.Module):
+    def __init__(self, link_weight=1., ent_weight=1., *args, **kwargs):
+        super(PoolLoss, self).__init__()
+        self.loss = torch.nn.modules.loss.NLLLoss(*args, **kwargs)
+        self.link_weight = link_weight
+        self.ent_weight = ent_weight
+
+    def forward(self, input, target):
+        output, link_loss, ent_loss = input
+        output = torch.log(output)
+
+        return self.loss.forward(output, target) \
+            + self.link_weight*link_loss \
+            + self.ent_weight*ent_loss
 
 
 class TopK(torch.nn.Module):
