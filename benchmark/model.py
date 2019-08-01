@@ -496,3 +496,76 @@ class SAGPool(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
+
+
+class EdgePool(torch.nn.Module):
+    def __init__(self, dataset, num_layers, hidden, ratio=0.5, dropout=0.3, method='softmax',
+                 num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
+        super(EdgePool, self).__init__()
+        self.dataset = dataset
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.graph_sage = graph_sage
+        self.dropout = dropout
+        self.convs = torch.nn.ModuleList([
+            Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
+        ])
+        self.convs.extend([
+            Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
+            for i in range(num_layers - 1)
+        ])
+        self.pools = torch.nn.ModuleList([
+            EdgePooling(hidden, getattr(EdgePooling, 'compute_edge_score_' + method)) for i in range(num_layers - 1)
+        ])
+        self.jump = JumpingKnowledge(mode='cat')
+        self.bn = BatchNorm1d(num_layers * hidden * 2)
+        self.lin1 = Linear(num_layers * hidden * 2, hidden)
+        self.lin2 = Linear(hidden, dataset.num_classes)
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+        for pool in self.pools:
+            pool.reset_parameters()
+
+        self.jump.reset_parameters()
+        self.bn.reset_parameters()
+        self.lin1.reset_parameters()
+        self.lin2.reset_parameters()
+    
+    def collate(self, data_list):
+        return Batch.from_data_list(data_list).to(self.device)
+
+    def forward(self, index):
+        data = self.collate([self.dataset[i.item()] for i in index])
+        x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
+
+        if x is None:
+            x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=self.device)
+
+        if self.graph_sage:
+            x = F.relu(self.convs[0](x, edge_index))
+        else:
+            x = F.relu(self.convs[0](x, edge_index, edge_attr))
+
+        xs = [global_add_pool(x, batch), global_max_pool(x, batch)]
+
+        for conv, pool in zip(self.convs[1:], self.pools):
+            x, edge_index, batch, _ = pool(x, edge_index, batch)
+
+            if self.graph_sage:
+                x = F.relu(conv(x, edge_index))
+            else:
+                x = F.relu(conv(x, edge_index, edge_attr))
+
+            xs.extend([global_add_pool(x, batch), global_max_pool(x, batch)])
+
+        x = self.jump(xs)
+        x = self.bn(x)
+        x = F.relu(self.lin1(x))
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.lin2(x)
+        return F.softmax(x, dim=-1)
+
+    def __repr__(self):
+        return self.__class__.__name__
