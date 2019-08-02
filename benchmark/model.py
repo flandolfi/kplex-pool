@@ -419,6 +419,7 @@ class TopK(torch.nn.Module):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin2(x)
+        
         return F.softmax(x, dim=-1)
 
     def __repr__(self):
@@ -492,6 +493,7 @@ class SAGPool(torch.nn.Module):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin2(x)
+
         return F.softmax(x, dim=-1)
 
     def __repr__(self):
@@ -538,26 +540,17 @@ class EdgePool(torch.nn.Module):
 
     def forward(self, index):
         data = self.collate([self.dataset[i.item()] for i in index])
-        x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
+        x, edge_index, batch = data.x, data.edge_index, data.batch
 
         if x is None:
             x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=self.device)
 
-        if self.graph_sage:
-            x = F.relu(self.convs[0](x, edge_index))
-        else:
-            x = F.relu(self.convs[0](x, edge_index, edge_attr))
-
+        x = F.relu(self.convs[0](x, edge_index))
         xs = [global_add_pool(x, batch), global_max_pool(x, batch)]
 
         for conv, pool in zip(self.convs[1:], self.pools):
             x, edge_index, batch, _ = pool(x, edge_index, batch)
-
-            if self.graph_sage:
-                x = F.relu(conv(x, edge_index))
-            else:
-                x = F.relu(conv(x, edge_index, edge_attr))
-
+            x = F.relu(conv(x, edge_index))
             xs.extend([global_add_pool(x, batch), global_max_pool(x, batch)])
 
         x = self.jump(xs)
@@ -565,6 +558,7 @@ class EdgePool(torch.nn.Module):
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin2(x)
+
         return F.softmax(x, dim=-1)
 
     def __repr__(self):
