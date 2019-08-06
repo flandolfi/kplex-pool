@@ -123,7 +123,7 @@ class KPlexPool(torch.nn.Module):
 
     def preprocess_dataset(self):
         self.cache = [[(None, G) for G in self.dataset]]
-        pbar = tqdm(desc="Processing dataset", total=len(self.dataset)*len(self.ks))
+        pbar = tqdm(desc="Processing dataset", leave=False, total=len(self.dataset)*len(self.ks))
 
         for k in self.ks:
             current = []
@@ -268,17 +268,22 @@ class DiffPool(torch.nn.Module):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.dropout = dropout
 
-        num_nodes = ceil(ratio * dataset[0].num_nodes)
+        if isinstance(ratio, list):
+            num_layers = len(ratio) + 1
+            self.ratios = ratio
+        else:
+            self.ratios = [ratio for _ in range(1, ratio)]
 
         self.embed_blocks = torch.nn.ModuleList()
         self.pool_blocks = torch.nn.ModuleList()
         self.embed_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
         self.pool_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
 
-        for _ in range(num_layers - 1):
+        for r in self.ratios:
+            num_nodes = ceil(r * float(num_nodes))
+            print(f"NUM NODES: {num_nodes}, R: {r}")
             self.embed_blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
             self.pool_blocks.append(Block(hidden, hidden, num_nodes, num_inner_layers, jumping_knowledge, graph_sage, True))
-            num_nodes = ceil(ratio * num_nodes)
 
         self.jump = JumpingKnowledge(mode='cat')
         self.bn = BatchNorm1d(num_layers * hidden * 2)
@@ -307,8 +312,11 @@ class DiffPool(torch.nn.Module):
     def forward(self, index):
         data = self.collate([self.dataset[i.item()] for i in index]).to(self.device)
 
-        x, adj, mask = data.x, data.adj, data.mask
+        x, adj, mask, nodes = data.x, data.adj, data.mask, data.num_nodes
 
+        if x is None:
+            x = torch.ones((nodes, 1), dtype=torch.float, device=self.device)
+        
         s = self.pool_blocks[0](x, adj, mask=mask, add_loop=True)
         x = F.relu(self.embed_blocks[0](x, adj, mask=mask, add_loop=True))
         xs = [x.sum(dim=1), x.max(dim=1)[0]]
@@ -352,24 +360,34 @@ class PoolLoss(torch.nn.Module):
             + self.ent_weight*ent_loss
 
 
-class TopK(torch.nn.Module):
+class TopKPool(torch.nn.Module):
     def __init__(self, dataset, num_layers, hidden, ratio=0.8, dropout=0.3,
                  num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
-        super(TopK, self).__init__()
+        super(TopKPool, self).__init__()
         self.dataset = dataset
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.graph_sage = graph_sage
         self.dropout = dropout
+
         self.convs = torch.nn.ModuleList([
             Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
         ])
+
         self.convs.extend([
             Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
             for i in range(num_layers - 1)
         ])
+
+        if isinstance(ratio, list):
+            num_layers = len(ratio) + 1
+            self.ratios = ratio
+        else:
+            self.ratios = [ratio for _ in range(1, ratio)]
+
         self.pools = torch.nn.ModuleList([
-            TopKPooling(hidden, ratio) for i in range(num_layers - 1)
+            TopKPooling(hidden, r) for r in self.ratios
         ])
+
         self.jump = JumpingKnowledge(mode='cat')
         self.bn = BatchNorm1d(num_layers * hidden * 2)
         self.lin1 = Linear(num_layers * hidden * 2, hidden)
@@ -434,16 +452,26 @@ class SAGPool(torch.nn.Module):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.graph_sage = graph_sage
         self.dropout = dropout
+
         self.convs = torch.nn.ModuleList([
             Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
         ])
+
         self.convs.extend([
             Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
             for i in range(num_layers - 1)
         ])
+
+        if isinstance(ratio, list):
+            num_layers = len(ratio) + 1
+            self.ratios = ratio
+        else:
+            self.ratios = [ratio for _ in range(1, ratio)]
+
         self.pools = torch.nn.ModuleList([
-            SAGPooling(hidden, ratio, GNN=getattr(torch_geometric.nn, gnn)) for i in range(num_layers - 1)
+            SAGPooling(hidden, r, GNN=getattr(torch_geometric.nn, gnn)) for r in self.ratios
         ])
+
         self.jump = JumpingKnowledge(mode='cat')
         self.bn = BatchNorm1d(num_layers * hidden * 2)
         self.lin1 = Linear(num_layers * hidden * 2, hidden)
@@ -501,23 +529,27 @@ class SAGPool(torch.nn.Module):
 
 
 class EdgePool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, ratio=0.5, dropout=0.3, method='softmax',
+    def __init__(self, dataset, num_layers, hidden, dropout=0.3, method='softmax', edge_dropout=0.,
                  num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
         super(EdgePool, self).__init__()
         self.dataset = dataset
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.graph_sage = graph_sage
         self.dropout = dropout
+
         self.convs = torch.nn.ModuleList([
             Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
         ])
+
         self.convs.extend([
             Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
             for i in range(num_layers - 1)
         ])
+
         self.pools = torch.nn.ModuleList([
-            EdgePooling(hidden, getattr(EdgePooling, 'compute_edge_score_' + method)) for i in range(num_layers - 1)
+            EdgePooling(hidden, getattr(EdgePooling, 'compute_edge_score_' + method), edge_dropout, 0.) for i in range(num_layers - 1)
         ])
+
         self.jump = JumpingKnowledge(mode='cat')
         self.bn = BatchNorm1d(num_layers * hidden * 2)
         self.lin1 = Linear(num_layers * hidden * 2, hidden)
