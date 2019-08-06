@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
     parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--patience', type=int, default=20)
+    parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--inner_folds', type=int, default=10)
@@ -67,23 +67,23 @@ if __name__ == "__main__":
     }
 
     param_grid = {
-        'lr': [5e-3], #, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4],
-        'optimizer__weight_decay': [1e-2], #, 1e-3, 1e-4, 1e-5],
-        'module__graph_sage': [True], #, False],
-        'module__hidden': [64], #, 128]
+        'lr': [5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4],
+        'optimizer__weight_decay': [1e-2, 1e-3, 1e-4, 1e-5],
+        'module__graph_sage': [True, False],
+        'module__hidden': [64, 128]
     }
 
     if args.model == 'KPlexPool':
         param_grid.update({
-            'module__k': [[i, j] for i, j in product([1], [1])] #, 2, 4, 8], [1, 2])]
+            'module__k': [[i, j] for i, j in product([1, 2, 4, 8], [1, 2])]
         })
     elif args.model == 'EdgePool':
         param_grid.update({
-            'module__method': ['softmax'], #, 'tanh'],
-            'module__edge_dropout': [0.0] #, 0.1, 0.2, 0.3]
+            'module__method': ['softmax', 'tanh'],
+            'module__edge_dropout': [0.0, 0.1, 0.2, 0.3]
         })
     else:
-        ratios = [0.25] #, 0.5, 0.75]
+        ratios = [0.25, 0.5, 0.75]
         param_grid.update({
             'module__ratio': [[i, j] for i, j in product(ratios, ratios)]
         })
