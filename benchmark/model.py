@@ -25,6 +25,7 @@ from torch_geometric.nn import (
 )
 
 from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
+from kplex_pool.utils import hub_promotion
 
 
 
@@ -77,7 +78,7 @@ class Block(torch.nn.Module):
 
 class KPlexPool(torch.nn.Module):
     def __init__(self, dataset, hidden, k, k_step_factor=1, num_layers=2, dropout=0.3,
-                 readout=True, graph_sage=False, normalize=False, simplify=False, 
+                 readout=True, graph_sage=False, normalize=False, simplify=False, q=None,
                  cache_results=True, global_pool_op='add', node_pool_op='add',
                  edge_pool_op='add', num_inner_layers=2, jumping_knowledge='cat',
                  **cover_args):
@@ -95,6 +96,7 @@ class KPlexPool(torch.nn.Module):
         self.node_pool_op = node_pool_op
         self.edge_pool_op = edge_pool_op
         self.dropout = dropout
+        self.q = q
 
         if isinstance(k, list):
             self.ks = k
@@ -131,6 +133,10 @@ class KPlexPool(torch.nn.Module):
             for _, G in self.cache[-1]:
                 c_idx, clusters, _ = kplex_cover(edge_index=G.edge_index, k=k, 
                                                  num_nodes=G.num_nodes, **self.cover_args)
+                
+                if self.q is not None:
+                    c_idx, clusters, _ = hub_promotion(c_idx, q=self.q, num_nodes=G.num_nodes, num_clusters=clusters)
+
                 edge_index, weights = cover_pool_edge(c_idx, G.edge_index, G.edge_attr, 
                                                      G.num_nodes, clusters, pool='add')
 
@@ -185,6 +191,10 @@ class KPlexPool(torch.nn.Module):
         else:
             c_idx, clusters, batch = kplex_cover(edge_index=edge_index, k=k, 
                                                  num_nodes=nodes, batch=batch, **self.cover_args)
+                
+            if self.q is not None:
+                c_idx, clusters, batch = hub_promotion(c_idx, self.q, nodes, clusters, batch)
+
             edge_index, weights = cover_pool_edge(c_idx, edge_index, weights, nodes, clusters, 
                                                   pool=self.edge_pool_op)
 

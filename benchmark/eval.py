@@ -36,6 +36,9 @@ if __name__ == "__main__":
     parser.add_argument('--layers', type=int, default=3)
     parser.add_argument('--inner_layers', type=int, default=2)
     parser.add_argument('--hidden', type=int, default=64)
+    parser.add_argument('--method', type=str, default='softmax')
+    parser.add_argument('--edge_dropout', type=float, default=0.2)
+    parser.add_argument('--q', type=float, default=None)
     parser.add_argument('--k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--graph_sage', action='store_true')
@@ -79,6 +82,7 @@ if __name__ == "__main__":
         params.update(
             module__k=args.k if args.ks is None else args.ks,
             module__k_step_factor=args.k_step_factor,
+            module__q=args.q,
             module__normalize=args.normalize,
             module__readout=args.no_readout,
             module__skip_covered=args.skip_covered,
