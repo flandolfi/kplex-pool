@@ -61,14 +61,14 @@ if __name__ == "__main__":
         'batch_size': args.batch_size,
         'criterion': model.PoolLoss if args.model == 'DiffPool' else torch.nn.modules.loss.NLLLoss,
         'optimizer': torch.optim.Adam,
+        'optimizer__weight_decay': 1e-4,
         'callbacks__print_log__sink': out_pbar.write,
         'iterator_train__shuffle': True,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu'
     }
 
     param_grid = {
-        'lr': [5e-3, 2e-3, 1e-3, 5e-4, 2e-4, 1e-4],
-        'optimizer__weight_decay': [1e-2, 1e-3, 1e-4, 1e-5],
+        'optimizer__lr': [5e-3, 1e-3, 5e-4, 1e-4],
         'module__graph_sage': [True, False],
         'module__hidden': [64, 128]
     }
@@ -96,13 +96,13 @@ if __name__ == "__main__":
         gs_pbar = tqdm(list(ParameterGrid(param_grid)), leave=True, position=1, desc='Grid Search')
 
         best_acc = 0.
-        best_epoch = 0.
+        best_epoch = 1.
         best_params = None
 
         for params in gs_pbar:
             in_skf = StratifiedKFold(n_splits=args.outer_folds, shuffle=True, random_state=42)
             in_pbar = tqdm(list(in_skf.split(out_train_X, out_train_y)), leave=True, position=2, desc='Inner CV')
-            gs_pbar.set_postfix(params)
+            gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
             best_valid_acc = []
             best_epoch = []
 
