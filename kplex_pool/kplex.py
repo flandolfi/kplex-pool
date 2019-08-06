@@ -48,7 +48,7 @@ def kplex_cover(edge_index, k, num_nodes=None, cover_priority="default",
         batch = edge_index.new_zeros(num_nodes, device=device)
     
     node_index = torch.arange(0, num_nodes, dtype=torch.long, device=device)
-    batch_size = batch[-1].item() + 1
+    batch_size = batch.max().item() + 1
     out_clusters = 0
     out_index = []
     out_batch = []
