@@ -45,3 +45,38 @@ def coverage(cover_index_list):
     _, coverage = torch_sparse.coalesce(last_idx, last_val, 1, num_clusters)
 
     return coverage.numpy()/num_nodes
+
+def node_covering_index(cover_index:torch.LongTensor, distribution=False, num_nodes=None):
+    counts = torch.bincount(cover_index[0], minlength=0 if num_nodes is None else num_nodes)
+
+    if distribution:
+        counts = torch.bincount(counts)
+    
+    return counts
+
+def hub_promotion(cover_index:torch.LongTensor, q=0.95, num_nodes=None, num_clusters=None, batch=None):
+    counts = node_covering_index(cover_index, num_nodes=num_nodes)
+    limit = np.quantile(counts.numpy(), q)
+    device = cover_index.device
+
+    if num_nodes is None:
+        num_nodes = counts.size(0)
+    
+    if num_clusters is None:
+        num_clusters = cover_index[1].max().item() + 1
+    
+    mask = counts <= limit
+    masked_index = cover_index[:, mask[cover_index[0]]]
+
+    hub_index = (mask == 0).nonzero().view(-1)    
+    out_clusters = num_clusters + hub_index.size(0)
+    hub_values = torch.arange(
+        start=num_clusters,
+        end=out_clusters,
+        device=device
+    )
+
+    out_index = torch.cat([masked_index, torch.stack([hub_index, hub_values])], dim=1)
+    out_batch = None if batch is None else batch[out_index[0]] 
+
+    return out_index, out_clusters, out_batch
