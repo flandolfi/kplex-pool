@@ -100,7 +100,7 @@ if __name__ == "__main__":
         best_params = None
 
         for params in gs_pbar:
-            in_skf = StratifiedKFold(n_splits=args.outer_folds, shuffle=True, random_state=42)
+            in_skf = StratifiedKFold(n_splits=args.inner_folds, shuffle=True, random_state=42)
             in_pbar = tqdm(list(in_skf.split(out_train_X, out_train_y)), leave=True, position=2, desc='Inner CV')
             gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
             valid_accs = []
