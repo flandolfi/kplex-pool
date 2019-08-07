@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
-    parser.add_argument('--inner_folds', type=int, default=10)
+    parser.add_argument('--inner_folds', type=int, default=5)
     parser.add_argument('--outer_folds', type=int, default=10)
     parser.add_argument('--layers', type=int, default=3)
     parser.add_argument('--inner_layers', type=int, default=2)
@@ -103,8 +103,8 @@ if __name__ == "__main__":
             in_skf = StratifiedKFold(n_splits=args.outer_folds, shuffle=True, random_state=42)
             in_pbar = tqdm(list(in_skf.split(out_train_X, out_train_y)), leave=True, position=2, desc='Inner CV')
             gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
-            best_valid_acc = []
-            best_epoch = []
+            valid_accs = []
+            valid_epochs = []
 
             for in_iter, (in_train_idx, in_val_idx) in enumerate(in_pbar):
                 in_train_X = X[in_train_idx]
@@ -124,8 +124,8 @@ if __name__ == "__main__":
                 ).fit(in_train_X, in_train_y)
 
                 df = pd.DataFrame(net.history).drop('batches', 1)
-                best_valid_acc.append(df[df.valid_acc_best].valid_acc.iloc[-1])
-                best_epoch.append(df[df.valid_acc_best].epoch.iloc[-1])
+                valid_accs.append(df[df.valid_acc_best].valid_acc.iloc[-1])
+                valid_epochs.append(df[df.valid_acc_best].epoch.iloc[-1])
 
                 df = pd.concat([df, pd.DataFrame([params for _ in df.iterrows()])], axis=1)
                 df['cv_type'] = 'inner'
@@ -136,11 +136,11 @@ if __name__ == "__main__":
 
             in_pbar.close()
 
-            mean_acc = np.mean(best_valid_acc)
+            mean_acc = np.mean(valid_accs)
 
             if mean_acc > best_acc:
                 best_acc = mean_acc
-                best_epoch = int(np.median(best_epoch))
+                best_epoch = int(np.median(valid_epochs))
                 best_params = params
         
         gs_pbar.close()
