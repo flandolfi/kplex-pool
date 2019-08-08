@@ -211,7 +211,7 @@ class KPlexPool(torch.nn.Module):
         return Batch.from_data_list(data_list).to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i.item()] for i in index])
+        data = self.collate(self.dataset[index])
 
         nodes = data.num_nodes
         edge_index = data.edge_index
@@ -313,10 +313,10 @@ class DiffPool(torch.nn.Module):
         for key in data_list[0].keys:
             batch[key] = default_collate([d[key] for d in data_list])
 
-        return batch
+        return batch.to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i.item()] for i in index]).to(self.device)
+        data = self.collate(self.dataset[index])        
 
         x, adj, mask = data.x, data.adj, data.mask
         
@@ -412,7 +412,8 @@ class TopKPool(torch.nn.Module):
         return Batch.from_data_list(data_list).to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i.item()] for i in index])
+        data = self.collate(self.dataset[index])
+
         x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
 
         if self.graph_sage:
@@ -493,7 +494,8 @@ class SAGPool(torch.nn.Module):
         return Batch.from_data_list(data_list).to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i.item()] for i in index])
+        data = self.collate(self.dataset[index])
+
         x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
 
         if self.graph_sage:
@@ -568,7 +570,8 @@ class EdgePool(torch.nn.Module):
         return Batch.from_data_list(data_list).to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i.item()] for i in index])
+        data = self.collate(self.dataset[index])
+
         x, edge_index, batch = data.x, data.edge_index, data.batch
 
         x = F.relu(self.convs[0](x, edge_index))
