@@ -218,10 +218,6 @@ class KPlexPool(torch.nn.Module):
         weights = data.edge_attr
         batch = data.batch
         x = data.x
-
-        if x is None:
-            x = torch.ones((nodes, 1), dtype=torch.float, device=self.device)
-
         batch_size = batch[-1].item() + 1
 
         if self.graph_sage:
@@ -322,10 +318,7 @@ class DiffPool(torch.nn.Module):
     def forward(self, index):
         data = self.collate([self.dataset[i.item()] for i in index]).to(self.device)
 
-        x, adj, mask, nodes = data.x, data.adj, data.mask, data.num_nodes
-
-        if x is None:
-            x = torch.ones((nodes, 1), dtype=torch.float, device=self.device)
+        x, adj, mask = data.x, data.adj, data.mask
         
         s = self.pool_blocks[0](x, adj, mask=mask, add_loop=True)
         x = F.relu(self.embed_blocks[0](x, adj, mask=mask, add_loop=True))
@@ -422,9 +415,6 @@ class TopKPool(torch.nn.Module):
         data = self.collate([self.dataset[i.item()] for i in index])
         x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
 
-        if x is None:
-            x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=self.device)
-
         if self.graph_sage:
             x = F.relu(self.convs[0](x, edge_index))
         else:
@@ -506,9 +496,6 @@ class SAGPool(torch.nn.Module):
         data = self.collate([self.dataset[i.item()] for i in index])
         x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
 
-        if x is None:
-            x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=self.device)
-
         if self.graph_sage:
             x = F.relu(self.convs[0](x, edge_index))
         else:
@@ -583,9 +570,6 @@ class EdgePool(torch.nn.Module):
     def forward(self, index):
         data = self.collate([self.dataset[i.item()] for i in index])
         x, edge_index, batch = data.x, data.edge_index, data.batch
-
-        if x is None:
-            x = torch.ones((data.num_nodes, 1), dtype=torch.float, device=self.device)
 
         x = F.relu(self.convs[0](x, edge_index))
         xs = [global_add_pool(x, batch), global_max_pool(x, batch)]

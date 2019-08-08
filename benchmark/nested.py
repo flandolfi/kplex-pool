@@ -15,6 +15,7 @@ from skorch.helper import predefined_split
 from skorch.dataset import Dataset
 
 from benchmark import model
+from kplex_pool.utils import add_node_features
 
 from sklearn.model_selection import StratifiedKFold, ParameterGrid
 from tqdm import tqdm
@@ -43,6 +44,10 @@ if __name__ == "__main__":
         torch.cuda.manual_seed_all(42)
     
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+
+    if dataset.data.x is None:
+        dataset = add_node_features(dataset)
+        
     X = np.arange(len(dataset)).reshape((-1, 1))
     y = dataset.data.y.numpy()
 
