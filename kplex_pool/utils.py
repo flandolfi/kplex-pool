@@ -3,7 +3,6 @@ import numpy as np
 import torch_sparse
 
 from kplex_pool import cover_pool_node
-from torch_geometric.data import Data, Batch
 from torch_geometric.utils import degree
 
 
@@ -86,18 +85,14 @@ def hub_promotion(cover_index:torch.LongTensor, q=0.95, num_nodes=None, num_clus
 def add_node_features(dataset):
     max_degree = 0.
     degrees = []
-    data_list = []
+    slices = [0]
 
     for data in dataset:
         degrees.append(degree(data.edge_index[0], data.num_nodes, torch.float))
         max_degree = max(max_degree, degrees[-1].max().item())
+        slices.append(data.num_nodes)
 
-    for data, deg in zip(dataset, degrees):
-        data.x = deg/max_degree
-        data_list.append(data)
-
-    batch = Batch.from_data_list(data_list)
-    dataset.data.x = batch.x.view(-1, 1)
-    dataset.slices['x'] = batch.batch.add(1).bincount().cumsum(0)
+    dataset.data.x = torch.cat(degrees, dim=0).div_(max_degree).view(-1, 1)
+    dataset.slices['x'] = torch.tensor(slices, dtype=torch.long, device=dataset.data.x.device)
 
     return dataset
