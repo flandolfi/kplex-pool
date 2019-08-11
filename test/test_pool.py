@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch_sparse
 from itertools import product
-from kplex_pool import kplex_cover
+from kplex_pool import KPlexCover
 from kplex_pool import cover_pool_edge, cover_pool_node
 from kplex_pool.kplex_cpu import NodePriority
 from torch_geometric.data import Data, Batch
@@ -40,9 +40,10 @@ def test_cover_pool(test, cover_priority, kplex_priority, device):
     edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
     k_max = test['k']
     nodes = edge_index.max().item() + 1
+    kplex_cover = KPlexCover(cover_priority, kplex_priority)
 
     for k in range(1, k_max + 1):
-        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(k, edge_index, None)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
         x = cover_pool_node(index, x, clusters, pool='add')
@@ -54,7 +55,7 @@ def test_cover_pool(test, cover_priority, kplex_priority, device):
         if k == k_max:
             assert x.size(0) == test['cc']
         
-        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(k, edge_index, None)
         x = torch.ones((nodes, 1), dtype=torch.float, device=device)
 
         x = cover_pool_node(index, x, clusters, pool='mean')
@@ -95,7 +96,7 @@ def test_cover_pool_batch(cover_priority, kplex_priority, device):
     
     data = Batch.from_data_list(gs).to(device)
     x = torch.ones((data.num_nodes, features), dtype=torch.float, device=device)
-    index, _, batch = kplex_cover(data.edge_index, k, None, cover_priority, kplex_priority, batch=data.batch)
+    index, _, batch = KPlexCover(cover_priority, kplex_priority)(k, data.edge_index, None, data.batch)
     x = cover_pool_node(index, x)
 
     assert batch.max().item() + 1 == len(tests)

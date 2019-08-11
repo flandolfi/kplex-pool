@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.data import Data, InMemoryDataset
 
-from kplex_pool import kplex_cover, cover_pool_node, cover_pool_edge, simplify
+from kplex_pool import KPlexCover, cover_pool_node, cover_pool_edge, simplify
 from kplex_pool.utils import hub_promotion
 
 from tqdm import tqdm
@@ -55,11 +55,11 @@ class CoarsenedDataset(InMemoryDataset):
         super(CoarsenedDataset, self).__init__(dataset.root)
         
         it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
+        kplex_cover = KPlexCover(**cover_args)
         data_list = []
 
         for data in it:
-            cover_index, clusters, _ = kplex_cover(edge_index=data.edge_index, k=k, 
-                                                   num_nodes=data.num_nodes, **cover_args)
+            cover_index, clusters, _ = kplex_cover(k, data.edge_index, data.num_nodes)
             
             if q is not None:
                 cover_index, clusters, _ = hub_promotion(cover_index, q=q, 

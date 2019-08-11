@@ -1,7 +1,7 @@
 import pytest
 import torch
 from itertools import product
-from kplex_pool import kplex_cover
+from kplex_pool import KPlexCover
 from kplex_pool.kplex_cpu import NodePriority
 
 
@@ -30,9 +30,10 @@ def test_kplex_cover(test, cover_priority, kplex_priority, device):
     edge_index = torch.tensor([test['row'], test['col']], dtype=torch.long, device=device)
     k_max = test['k']
     nodes = edge_index.max().item() + 1
+    kplex_cover = KPlexCover(cover_priority, kplex_priority)
 
     for k in range(1, k_max + 1):
-        index, clusters, batch = kplex_cover(edge_index, k, None, cover_priority, kplex_priority)
+        index, clusters, batch = kplex_cover(k, edge_index, None)
 
         if k == k_max:
             assert clusters == 1, "Parameters:\n\t" \
