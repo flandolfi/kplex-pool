@@ -119,7 +119,7 @@ if __name__ == "__main__":
                     last_ks = params['module__k']
                     last_cache = KPlexCover().get_representations(dataset, last_ks)
                 
-                params['cache'] = last_cache
+                params['module__cache'] = last_cache
 
             for in_iter, (in_train_idx, in_val_idx) in enumerate(in_pbar):
                 in_train_X = X[in_train_idx]
