@@ -2,7 +2,8 @@ import torch
 import numpy as np
 import torch_sparse
 
-from kplex_pool import cover_pool_node
+from kplex_pool.pool import cover_pool_node
+
 from torch_geometric.utils import degree
 
 
