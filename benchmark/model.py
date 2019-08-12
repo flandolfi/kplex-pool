@@ -234,7 +234,6 @@ class DiffPool(torch.nn.Module):
 
         for r in self.ratios:
             num_nodes = ceil(r * float(num_nodes))
-            print(f"NUM NODES: {num_nodes}, R: {r}")
             self.embed_blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
             self.pool_blocks.append(Block(hidden, hidden, num_nodes, num_inner_layers, jumping_knowledge, graph_sage, True))
 
