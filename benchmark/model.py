@@ -262,7 +262,7 @@ class DiffPool(torch.nn.Module):
         return batch.to(self.device)
 
     def forward(self, index):
-        data = self.collate([self.dataset[i] for i in index.numpy().flatten()])        
+        data = self.collate([self.dataset[i] for i in index.cpu().numpy().flatten()])        
 
         x, adj, mask = data.x, data.adj, data.mask
         
