@@ -225,7 +225,7 @@ class DiffPool(torch.nn.Module):
             num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, ratio)]
+            self.ratios = [ratio for _ in range(1, num_layers)]
 
         self.embed_blocks = torch.nn.ModuleList()
         self.pool_blocks = torch.nn.ModuleList()
@@ -262,7 +262,7 @@ class DiffPool(torch.nn.Module):
         return batch.to(self.device)
 
     def forward(self, index):
-        data = self.collate(self.dataset[index])        
+        data = self.collate([self.dataset[i] for i in index.numpy().flatten()])        
 
         x, adj, mask = data.x, data.adj, data.mask
         
@@ -331,7 +331,7 @@ class TopKPool(torch.nn.Module):
             num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, ratio)]
+            self.ratios = [ratio for _ in range(1, num_layers)]
 
         self.pools = torch.nn.ModuleList([
             TopKPooling(hidden, r) for r in self.ratios
@@ -413,7 +413,7 @@ class SAGPool(torch.nn.Module):
             num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, ratio)]
+            self.ratios = [ratio for _ in range(1, num_layers)]
 
         self.pools = torch.nn.ModuleList([
             SAGPooling(hidden, r, GNN=getattr(torch_geometric.nn, gnn)) for r in self.ratios
