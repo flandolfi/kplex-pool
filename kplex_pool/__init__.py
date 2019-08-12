@@ -2,7 +2,7 @@ from .kplex import KPlexCover
 from .pool import cover_pool_node, cover_pool_edge
 from .cc import connected_components
 from .simplify import simplify
-from . import utils
+from . import data, utils
 
 __all__ = [
     'KPlexCover',
@@ -10,5 +10,6 @@ __all__ = [
     'cover_pool_edge',
     'simplify',
     'connected_components',
+    'data',
     'utils'
 ]

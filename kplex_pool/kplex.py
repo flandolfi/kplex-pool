@@ -1,6 +1,12 @@
 import torch
 
 from kplex_pool import kplex_cpu
+from kplex_pool.pool import cover_pool_node, cover_pool_edge
+from kplex_pool.simplify import simplify
+from kplex_pool.utils import hub_promotion
+from kplex_pool.data import Cover, CustomDataset
+
+from tqdm import tqdm
 
 
 
@@ -77,3 +83,45 @@ class KPlexCover:
             min_index += num_nodes
 
         return torch.cat(out_index, dim=1), out_clusters, torch.cat(out_batch, dim=0)
+
+    def process(self, dataset, k, 
+                edge_pool_op='add', 
+                q=None, 
+                simplify=False, 
+                verbose=True,
+                **cover_args):
+        it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
+        data_list = []
+
+        for data in it:
+            cover_index, clusters, _ = self(k, data.edge_index, data.num_nodes)
+            
+            if q is not None:
+                cover_index, clusters, _ = hub_promotion(cover_index, q=q, 
+                                                         num_nodes=data.num_nodes, 
+                                                         num_clusters=clusters)
+
+            edge_index, weights = cover_pool_edge(cover_index, data.edge_index, data.edge_attr, 
+                                                  data.num_nodes, clusters, pool=edge_pool_op)
+
+            if simplify:
+                edge_index, weights = simplify(edge_index, weights, num_nodes=clusters)
+            
+            data_list.append(Cover(cover_index=cover_index,
+                                   edge_index=edge_index, 
+                                   edge_attr=weights,
+                                   num_covered_nodes=data.num_nodes, 
+                                   num_nodes=clusters))
+            
+        return CustomDataset(data_list)
+
+    def get_representations(self, dataset, ks, *args, **kwargs):
+        output = [dataset]
+
+        if (len(args) >= 4 and args[3]) or kwargs.get('verbose', True):
+            ks = tqdm(ks, desc="Creating Hierarchical Representations", leave=False)
+
+        for k in ks:
+            output.append(self.process(output[-1], k, *args, **kwargs))
+        
+        return output

@@ -1,11 +1,6 @@
 import torch
 from torch_geometric.data import Data, InMemoryDataset
 
-from kplex_pool import KPlexCover, cover_pool_node, cover_pool_edge, simplify
-from kplex_pool.utils import hub_promotion
-
-from tqdm import tqdm
-
 
 
 class Cover(Data):
@@ -50,41 +45,13 @@ class Cover(Data):
         self.__num_nodes__ = num_nodes
 
 
-class CoarsenedDataset(InMemoryDataset):
-    def __init__(self, dataset, k, pool_op='add', q=None, simplify=False, verbose=True, **cover_args):
-        super(CoarsenedDataset, self).__init__(dataset.root)
-        
-        it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
-        kplex_cover = KPlexCover(**cover_args)
-        data_list = []
-
-        for data in it:
-            cover_index, clusters, _ = kplex_cover(k, data.edge_index, data.num_nodes)
-            
-            if q is not None:
-                cover_index, clusters, _ = hub_promotion(cover_index, q=q, 
-                                                         num_nodes=data.num_nodes, 
-                                                         num_clusters=clusters)
-
-            edge_index, weights = cover_pool_edge(cover_index, data.edge_index, data.edge_attr, 
-                                                  data.num_nodes, clusters, pool=pool_op)
-
-            if simplify:
-                edge_index, weights = simplify(edge_index, weights, num_nodes=clusters)
-            
-            data_list.append(Cover(cover_index=cover_index,
-                                   edge_index=edge_index, 
-                                   edge_attr=weights,
-                                   num_covered_nodes=data.num_nodes, 
-                                   num_nodes=clusters))
-        
+class CustomDataset(InMemoryDataset):
+    def __init__(self, data_list):
+        super(CustomDataset, self).__init__("")
         self.data, self.slices = self.collate(data_list)
-        self.dataset = dataset
     
     def _download(self):
         pass
 
     def _process(self):
         pass
-        
-
