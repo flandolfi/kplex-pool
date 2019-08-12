@@ -15,6 +15,7 @@ from skorch.helper import predefined_split
 from skorch.dataset import Dataset
 
 from benchmark import model
+from kplex_pool import KPlexCover
 from kplex_pool.utils import add_node_features
 
 from sklearn.model_selection import StratifiedKFold, ParameterGrid
@@ -103,6 +104,8 @@ if __name__ == "__main__":
         best_acc = 0.
         best_epoch = 1.
         best_params = None
+        last_ks = None
+        last_cache = None
 
         for params in gs_pbar:
             in_skf = StratifiedKFold(n_splits=args.inner_folds, shuffle=True, random_state=42)
@@ -110,6 +113,13 @@ if __name__ == "__main__":
             gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
             valid_accs = []
             valid_epochs = []
+
+            if args.model == 'KPlexPool':
+                if not np.array_equal(last_ks, params['module__k']):
+                    last_ks = params['module__k']
+                    last_cache = KPlexCover().get_representations(dataset, last_ks)
+                
+                params['cache'] = last_cache
 
             for in_iter, (in_train_idx, in_val_idx) in enumerate(in_pbar):
                 in_train_X = X[in_train_idx]

@@ -91,7 +91,7 @@ if __name__ == "__main__":
             module__normalize=args.normalize,
             module__readout=args.no_readout,
             module__skip_covered=args.skip_covered,
-            module__cache_results=args.no_cache,
+            module__cache=args.no_cache,
             module__cover_priority=args.cover_priority,
             module__kplex_priority=args.kplex_priority,
             module__global_pool_op=args.global_pool_op,
