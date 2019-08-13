@@ -57,7 +57,7 @@ class KPlexCover:
 
         if batch is None:
             row, col = edge_index.cpu()
-            cover_index = kplex_cpu.kplex_cover(row, col, k, num_nodes,
+            cover_index = kplex_cpu.kplex_cover(row, col, k, int(num_nodes),
                                                 self.cover_priority,
                                                 self.kplex_priority,
                                                 self.skip_covered).to(device)
@@ -125,3 +125,11 @@ class KPlexCover:
             output.append(self.process(output[-1], k, *args, **kwargs))
         
         return output
+
+    def get_cover_fun(self, ks, dataset=None, *args, **kwargs):
+        if dataset is None:
+            return lambda ds, idx: self.get_representations(ds[idx], ks, *args, **kwargs)
+
+        cache = self.get_representations(dataset, ks, *args, **kwargs)
+
+        return lambda _, idx: [ds[idx] for ds in cache]

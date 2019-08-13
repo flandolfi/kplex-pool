@@ -77,24 +77,19 @@ class Block(torch.nn.Module):
         
         return x
 
-class KPlexPool(torch.nn.Module):
-    def __init__(self, dataset, hidden, k, 
-                 k_step_factor=1, 
+
+class CoverPool(torch.nn.Module):
+    def __init__(self, dataset, cover_fn, hidden,
                  num_layers=2, 
                  num_inner_layers=2, 
                  dropout=0.3,
                  readout=True, 
                  graph_sage=False, 
                  normalize=False, 
-                 cache=True, 
                  jumping_knowledge='cat',
                  global_pool_op='add', 
-                 node_pool_op='add', 
-                 cover_priority='default',
-                 kplex_priority='default',
-                 skip_covered=False,
-                 **cover_args):
-        super(KPlexPool, self).__init__()
+                 node_pool_op='add'):
+        super(CoverPool, self).__init__()
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.normalize = normalize
@@ -104,17 +99,7 @@ class KPlexPool(torch.nn.Module):
         self.global_pool_op = global_add_pool if 'add' else global_mean_pool
         self.node_pool_op = node_pool_op
         self.dropout = dropout
-        self.kplex_cover = KPlexCover(cover_priority, kplex_priority, skip_covered)
-        self.cover_args = cover_args
-
-        if isinstance(k, list):
-            self.ks = k
-            num_layers = len(k) + 1
-        else:
-            self.ks = [k]
-
-            for _ in range(1, num_layers):
-                self.ks.append(ceil(k_step_factor*self.ks[-1]))
+        self.cover_fn = cover_fn
 
         self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
         self.blocks = torch.nn.ModuleList()
@@ -126,14 +111,6 @@ class KPlexPool(torch.nn.Module):
         self.bn = BatchNorm1d(out_dim)
         self.lin1 = Linear(out_dim, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
-
-        if isinstance(cache, list):
-            self.cache = cache
-        elif bool(cache):
-            self.cache = self.kplex_cover.get_representations(dataset, self.ks, **cover_args)
-        else:
-            self.cache = None
-            self.cover_args['verbose'] = False
 
     def reset_parameters(self):
         self.conv_in.reset_parameters()
@@ -148,24 +125,14 @@ class KPlexPool(torch.nn.Module):
     def collate(self, data_list):
         return Batch.from_data_list(data_list).to(self.device)
 
-    def get_data(self, index):
-        if self.cache is not None:
-            dss = [ds[index] for ds in self.cache]
-        else:
-            dss = self.kplex_cover.get_representations(self.dataset[index], 
-                                                       self.ks, 
-                                                       **self.cover_args)
-
-        return [self.collate(ds) for ds in dss]
-
     def forward(self, index):
-        dss = self.get_data(index)
-        data = dss[0]
+        hierarchy = map(self.collate, self.cover_fn(self.dataset, index))
+        data = next(hierarchy)
 
         x, edge_index, weights, batch = data.x, data.edge_index, data.edge_attr, data.batch
         batch_size = len(index)
 
-        if self.graph_sage:
+        if self.graph_sage: 
             x = F.relu(self.conv_in(x, edge_index))
         else:
             x = F.relu(self.conv_in(x, edge_index, weights))
@@ -175,7 +142,7 @@ class KPlexPool(torch.nn.Module):
             global_max_pool(x, batch, batch_size)
         ]
 
-        for block, data in zip(self.blocks, dss[1:]):  
+        for block, data in zip(self.blocks, hierarchy):  
             cover_index, edge_index, weights, batch = data.cover_index, data.edge_index, data.edge_attr, data.batch
 
             x_mean = cover_pool_node(cover_index, x, data.num_nodes, pool=self.node_pool_op)
@@ -292,6 +259,7 @@ class DiffPool(torch.nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__
+
 
 class PoolLoss(torch.nn.Module):
     def __init__(self, link_weight=1., ent_weight=1., *args, **kwargs):

@@ -1,7 +1,8 @@
-from itertools import product
 import sys
 import argparse
 import numpy as np
+from math import ceil
+from itertools import product
 
 import torch
 
@@ -13,13 +14,14 @@ from skorch.dataset import CVSplit
 
 from benchmark import model
 from kplex_pool.utils import add_node_features
+from kplex_pool.kplex import KPlexCover
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='KPlexPool')
+    parser.add_argument('--model', type=str, default='CoverPool')
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--cover_priority', type=str, default='default')
     parser.add_argument('--kplex_priority', type=str, default='default')
@@ -51,6 +53,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     torch.manual_seed(42)
+    np.random.seed(42)
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
@@ -83,21 +86,31 @@ if __name__ == "__main__":
         'device': 'cuda' if torch.cuda.is_available() else 'cpu'
     }
 
-    if args.model == 'KPlexPool':
+    if args.model == 'CoverPool':
+        ks = args.ks
+
+        if ks is None:
+            ks = [args.k]
+            last_k = float(args.k)
+
+            for _ in range(1, args.layers):
+                last_k *= args.k_step_factor
+                ks.append(ceil(last_k))
+
+        kplex_cover = KPlexCover(args.cover_priority, args.kplex_priority, args.skip_covered)
+        cover_fun = kplex_cover.get_cover_fun(ks, dataset if args.no_cache else None, 
+                                              q=args.q,
+                                              edge_pool_op=args.edge_pool_op,
+                                              verbose=True if args.no_cache else False)
         params.update(
-            module__k=args.k if args.ks is None else args.ks,
-            module__k_step_factor=args.k_step_factor,
-            module__q=args.q,
+            module__cover_fun=cover_fun,
             module__normalize=args.normalize,
             module__readout=args.no_readout,
-            module__skip_covered=args.skip_covered,
-            module__cache=args.no_cache,
-            module__cover_priority=args.cover_priority,
-            module__kplex_priority=args.kplex_priority,
             module__global_pool_op=args.global_pool_op,
-            module__node_pool_op=args.node_pool_op,
-            module__edge_pool_op=args.edge_pool_op
+            module__node_pool_op=args.node_pool_op
         )
+    elif args.model == 'EdgePool':
+        params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
     else:
         params.update(module__ratio=args.ratio)
 

@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='KPlexPool')
+    parser.add_argument('--model', type=str, default='CoverPool')
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
     parser.add_argument('--max_epochs', type=int, default=1000)
@@ -74,24 +74,29 @@ if __name__ == "__main__":
     }
 
     param_grid = {
-        'optimizer__lr': [5e-3, 1e-3, 5e-4, 1e-4],
+        'optimizer__lr': [1e-3, 5e-4, 2e-4, 1e-4],
         'module__graph_sage': [True, False],
         'module__hidden': [64, 128]
     }
 
-    if args.model == 'KPlexPool':
-        param_grid.update({
-            'module__k': [[i, j] for i, j in product([1, 2, 4, 8], [1, 2])]
-        })
+    if args.model == 'CoverPool':
+        if args.dataset == 'COLLAB':
+            param_grid.update(module__k=[(1, 1)])
+        else:
+            param_grid.update({
+                'module__k': [(1, 1), (2, 1), (2, 2), (4, 2), (4, 4), (8, 4), (8, 8)]
+            })
+        
+        cover_fs = dict()
+        kplex_cover = KPlexCover()
     elif args.model == 'EdgePool':
         param_grid.update({
             'module__method': ['softmax', 'tanh'],
-            'module__edge_dropout': [0.0, 0.1, 0.2, 0.3]
+            'module__edge_dropout': [0.0, 0.2]
         })
     else:
-        ratios = [0.25, 0.5, 0.75]
         param_grid.update({
-            'module__ratio': [[i, j] for i, j in product(ratios, ratios)]
+            'module__ratio': [0.25, 0.5, 0.75]
         })
 
     for out_iter, (out_train_idx, out_test_idx) in enumerate(out_pbar):
@@ -104,8 +109,6 @@ if __name__ == "__main__":
         best_acc = 0.
         best_epoch = 1.
         best_params = None
-        last_ks = None
-        last_cache = None
 
         for params in gs_pbar:
             in_skf = StratifiedKFold(n_splits=args.inner_folds, shuffle=True, random_state=42)
@@ -114,12 +117,13 @@ if __name__ == "__main__":
             valid_accs = []
             valid_epochs = []
 
-            if args.model == 'KPlexPool':
-                if not np.array_equal(last_ks, params['module__k']):
-                    last_ks = params['module__k']
-                    last_cache = KPlexCover().get_representations(dataset, last_ks)
+            if args.model == 'CoverPool':
+                ks = params.pop('module__k')
                 
-                params['module__cache'] = last_cache
+                if ks not in cover_fs:
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset)
+                
+                params['module__cover_fn'] = cover_fs[ks]
 
             for in_iter, (in_train_idx, in_val_idx) in enumerate(in_pbar):
                 in_train_X = X[in_train_idx]
