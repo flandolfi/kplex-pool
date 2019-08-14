@@ -28,6 +28,9 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
     parser.add_argument('--max_epochs', type=int, default=1000)
+    parser.add_argument('--max_k', type=int, default=8)
+    parser.add_argument('--k_step_factor', type=float, default=1.)
+    parser.add_argument('--q', type=float, default=None)
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
@@ -80,15 +83,16 @@ if __name__ == "__main__":
     }
 
     if args.model == 'CoverPool':
-        if args.dataset == 'COLLAB':
-            param_grid.update(module__k=[(1, 1)])
-        else:
-            param_grid.update({
-                'module__k': [(1, 1), (2, 1), (2, 2), (4, 2), (4, 4), (8, 4), (8, 8)]
-            })
+        last_k = 2**np.arange(np.log2(args.max_k) + 1).astype(int)
+        ks = [last_k]
+
+        for _ in range(args.layers - 2):
+            last_k = np.ceil(last_k*args.k_step_factor).astype(int)
+            ks.append(last_k)
         
         cover_fs = dict()
         kplex_cover = KPlexCover()
+        param_grid.update(module__k=list(zip(*ks)))
     elif args.model == 'EdgePool':
         param_grid.update({
             'module__method': ['softmax', 'tanh'],
@@ -121,7 +125,7 @@ if __name__ == "__main__":
                 ks = params.pop('module__k')
                 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset)
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q)
                 
                 params['module__cover_fn'] = cover_fs[ks]
 
@@ -184,7 +188,7 @@ if __name__ == "__main__":
     out_pbar.close()
     pd.concat(results, sort=False).to_pickle(args.to_pickle)
 
-    print("\nAccuracy: {:.2f} ± {:.2f}".format(
+    print("\nAccuracy: {:.2f} ± {:.2f}\n".format(
         100.*np.mean(test_acc), 
         100.*np.std(test_acc)
     ))
