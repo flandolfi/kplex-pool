@@ -94,6 +94,6 @@ def add_node_features(dataset):
         slices.append(data.num_nodes)
 
     dataset.data.x = torch.cat(degrees, dim=0).div_(max_degree).view(-1, 1)
-    dataset.slices['x'] = torch.tensor(slices, dtype=torch.long, device=dataset.data.x.device)
+    dataset.slices['x'] = torch.tensor(slices, dtype=torch.long, device=dataset.data.x.device).cumsum(0)
 
     return dataset
