@@ -39,7 +39,21 @@ if __name__ == "__main__":
     parser.add_argument('--layers', type=int, default=3)
     parser.add_argument('--inner_layers', type=int, default=2)
     parser.add_argument('--to_pickle', type=str, default='cv_results.pickle')
+    parser.add_argument('--from_pickle', type=str, default=None)
     args = parser.parse_args()
+
+    if args.from_pickle is not None:
+        results = pd.read_pickle(args.from_pickle)
+        outer = results[results.cv_type == 'outer']
+        outer.index = range(len(outer))
+        test_acc = outer.valid_acc[outer.groupby('outer_fold').epoch.idxmax()]
+
+        print("\nAccuracy: {:.2f} ± {:.2f}\n".format(
+            100.*np.mean(test_acc), 
+            100.*np.std(test_acc)
+        ))
+
+        exit()
 
     torch.manual_seed(42)
     np.random.seed(42)
