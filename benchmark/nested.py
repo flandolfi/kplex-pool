@@ -176,7 +176,7 @@ if __name__ == "__main__":
             **best_params
         ).fit(out_train_X, out_train_y)
 
-        test_acc.append(net.history[-1, 'valid_acc']) # The last one, not the best one
+        test_acc.append(net.history[-1, 'valid_acc'])  # The last one, not the best one
         df = pd.DataFrame(net.history).drop('batches', 1)
 
         df = pd.concat([df, pd.DataFrame([params for _ in df.iterrows()])], axis=1)
@@ -186,9 +186,15 @@ if __name__ == "__main__":
         results.append(df)
     
     out_pbar.close()
-    pd.concat(results, sort=False).to_pickle(args.to_pickle)
-
+    
     print("\nAccuracy: {:.2f} ± {:.2f}\n".format(
         100.*np.mean(test_acc), 
         100.*np.std(test_acc)
     ))
+
+    results = pd.concat(results, sort=False)
+
+    if args.model == 'CoverPool':
+        results = results.drop('module__cover_fn', 1)  # Ugly fix
+
+    results.to_pickle(args.to_pickle)
