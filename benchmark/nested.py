@@ -17,7 +17,6 @@ from skorch.dataset import Dataset
 from benchmark import model
 from kplex_pool import KPlexCover
 from kplex_pool.utils import add_node_features
-from kplex_pool.data import CustomDataset
 
 from sklearn.model_selection import StratifiedKFold, ParameterGrid
 from tqdm import tqdm
@@ -44,11 +43,12 @@ if __name__ == "__main__":
 
     torch.manual_seed(42)
     np.random.seed(42)
+    device = 'cpu'
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
+        device = 'cuda' 
     
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
 
     if dataset.data.x is None:
@@ -57,7 +57,6 @@ if __name__ == "__main__":
     X = np.arange(len(dataset)).reshape((-1, 1))
     y = dataset.data.y.numpy()
 
-    dataset = CustomDataset([data.to(device) for data in dataset])
     out_skf = StratifiedKFold(n_splits=args.outer_folds, shuffle=True, random_state=42)
     out_pbar = tqdm(list(out_skf.split(X, y)), leave=True, position=0, desc='Outer CV')
     results = []
