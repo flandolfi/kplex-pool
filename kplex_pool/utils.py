@@ -58,7 +58,7 @@ def node_covering_index(cover_index:torch.LongTensor, distribution=False, num_no
 
 def hub_promotion(cover_index:torch.LongTensor, q=0.95, num_nodes=None, num_clusters=None, batch=None):
     counts = node_covering_index(cover_index, num_nodes=num_nodes)
-    limit = np.quantile(counts.numpy(), q)
+    limit = np.quantile(counts.cpu().numpy(), q)
     device = cover_index.device
 
     if num_nodes is None:
