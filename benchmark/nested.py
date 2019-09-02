@@ -17,6 +17,7 @@ from skorch.dataset import Dataset
 from benchmark import model
 from kplex_pool import KPlexCover
 from kplex_pool.utils import add_node_features
+from kplex_pool.data import CustomDataset
 
 from sklearn.model_selection import StratifiedKFold, ParameterGrid
 from tqdm import tqdm
@@ -47,6 +48,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
     
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
 
     if dataset.data.x is None:
@@ -55,6 +57,7 @@ if __name__ == "__main__":
     X = np.arange(len(dataset)).reshape((-1, 1))
     y = dataset.data.y.numpy()
 
+    dataset = CustomDataset([data.to(device) for data in dataset])
     out_skf = StratifiedKFold(n_splits=args.outer_folds, shuffle=True, random_state=42)
     out_pbar = tqdm(list(out_skf.split(X, y)), leave=True, position=0, desc='Outer CV')
     results = []
@@ -73,7 +76,7 @@ if __name__ == "__main__":
         'optimizer__weight_decay': 1e-4,
         'callbacks__print_log__sink': out_pbar.write,
         'iterator_train__shuffle': True,
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+        'device': device
     }
 
     param_grid = {
@@ -125,7 +128,7 @@ if __name__ == "__main__":
                 ks = params.pop('module__k')
                 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q, device=shared_params['device'])
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q)
                 
                 params['module__cover_fn'] = cover_fs[ks]
 
