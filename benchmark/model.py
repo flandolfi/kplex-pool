@@ -79,7 +79,7 @@ class Block(torch.nn.Module):
 
 
 class CoverPool(torch.nn.Module):
-    def __init__(self, dataset, cover_fn, hidden,
+    def __init__(self, dataset, cover_fun, hidden,
                  num_layers=2, 
                  num_inner_layers=2, 
                  dropout=0.3,
@@ -99,7 +99,7 @@ class CoverPool(torch.nn.Module):
         self.global_pool_op = global_add_pool if 'add' else global_mean_pool
         self.node_pool_op = node_pool_op
         self.dropout = dropout
-        self.cover_fn = cover_fn
+        self.cover_fun = cover_fun
 
         self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
         self.blocks = torch.nn.ModuleList()
@@ -126,7 +126,7 @@ class CoverPool(torch.nn.Module):
         return Batch.from_data_list(data_list).to(self.device)
 
     def forward(self, index):
-        hierarchy = map(self.collate, self.cover_fn(self.dataset, index))
+        hierarchy = map(self.collate, self.cover_fun(self.dataset, index.to(self.device)))
         data = next(hierarchy)
 
         x, edge_index, weights, batch = data.x, data.edge_index, data.edge_attr, data.batch

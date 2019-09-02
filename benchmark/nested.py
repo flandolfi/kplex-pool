@@ -130,7 +130,7 @@ if __name__ == "__main__":
                 if ks not in cover_fs:
                     cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q)
                 
-                params['module__cover_fn'] = cover_fs[ks]
+                params['module__cover_fun'] = cover_fs[ks]
 
             for in_iter, (in_train_idx, in_val_idx) in enumerate(in_pbar):
                 in_train_X = X[in_train_idx]
@@ -198,6 +198,6 @@ if __name__ == "__main__":
     results = pd.concat(results, sort=False)
 
     if args.model == 'CoverPool':
-        results = results.drop('module__cover_fn', 1)  # Ugly fix
+        results = results.drop('module__cover_fun', 1)  # Ugly fix
 
     results.to_pickle(args.to_pickle)
