@@ -89,9 +89,12 @@ class KPlexCover:
                 q=None, 
                 simplify=False, 
                 verbose=True,
-                **cover_args):
+                device=None):        
         it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
         data_list = []
+
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         for data in it:
             cover_index, clusters, _ = self(k, data.edge_index, data.num_nodes)
@@ -111,7 +114,7 @@ class KPlexCover:
                                    edge_index=edge_index, 
                                    edge_attr=weights,
                                    num_covered_nodes=data.num_nodes, 
-                                   num_nodes=clusters))
+                                   num_nodes=clusters).to(device))
             
         return CustomDataset(data_list)
 

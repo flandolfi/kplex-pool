@@ -125,7 +125,7 @@ if __name__ == "__main__":
                 ks = params.pop('module__k')
                 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q)
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q, device=shared_params['device'])
                 
                 params['module__cover_fn'] = cover_fs[ks]
 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
         results.append(df)
     
     out_pbar.close()
-    
+
     print("\nAccuracy: {:.2f} ± {:.2f}\n".format(
         100.*np.mean(test_acc), 
         100.*np.std(test_acc)
