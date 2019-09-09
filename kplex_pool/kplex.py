@@ -2,7 +2,7 @@ import torch
 
 from kplex_pool import kplex_cpu
 from kplex_pool.pool import cover_pool_node, cover_pool_edge
-from kplex_pool.simplify import simplify
+from kplex_pool.simplify import simplify as simplify_graph
 from kplex_pool.utils import hub_promotion
 from kplex_pool.data import Cover, CustomDataset
 
@@ -104,7 +104,7 @@ class KPlexCover:
                                                   data.num_nodes, clusters, pool=edge_pool_op)
 
             if simplify:
-                edge_index, weights = simplify(edge_index, weights, num_nodes=clusters)
+                edge_index, weights = simplify_graph(edge_index, weights, num_nodes=clusters)
             
             data_list.append(Cover(cover_index=cover_index,
                                    edge_index=edge_index, 

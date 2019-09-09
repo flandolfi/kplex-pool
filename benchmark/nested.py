@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=1.)
     parser.add_argument('--q', type=float, default=None)
+    parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
@@ -141,7 +142,7 @@ if __name__ == "__main__":
                 ks = params.pop('module__k')
                 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q)
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q, simplify=args.simplify)
                 
                 params['module__cover_fun'] = cover_fs[ks]
 

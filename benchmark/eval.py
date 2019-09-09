@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--dropout', type=float, default=0.3)
+    parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--ratio', type=float, default=0.8)
     parser.add_argument('--split', type=float, default=0.1)
     parser.add_argument('--layers', type=int, default=3)
@@ -100,6 +101,7 @@ if __name__ == "__main__":
         kplex_cover = KPlexCover(args.cover_priority, args.kplex_priority, args.skip_covered)
         cover_fun = kplex_cover.get_cover_fun(ks, dataset if args.no_cache else None, 
                                               q=args.q,
+                                              simplify=args.simplify,
                                               edge_pool_op=args.edge_pool_op,
                                               verbose=True if args.no_cache else False)
         params.update(
