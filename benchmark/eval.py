@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--simplify', action='store_true')
+    parser.add_argument('--dense', action='store_true')
     parser.add_argument('--ratio', type=float, default=0.8)
     parser.add_argument('--split', type=float, default=0.1)
     parser.add_argument('--layers', type=int, default=3)
@@ -107,6 +108,7 @@ if __name__ == "__main__":
         params.update(
             module__cover_fun=cover_fun,
             module__normalize=args.normalize,
+            module__dense=args.dense,
             module__readout=args.no_readout,
             module__global_pool_op=args.global_pool_op,
             module__node_pool_op=args.node_pool_op

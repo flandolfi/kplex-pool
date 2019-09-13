@@ -84,7 +84,8 @@ class CoverPool(torch.nn.Module):
                  num_inner_layers=2, 
                  dropout=0.3,
                  readout=True, 
-                 graph_sage=False, 
+                 graph_sage=False,
+                 dense=False, 
                  normalize=False, 
                  jumping_knowledge='cat',
                  global_pool_op='add', 
@@ -94,6 +95,7 @@ class CoverPool(torch.nn.Module):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.normalize = normalize
         self.graph_sage = graph_sage
+        self.dense = dense
         self.readout = readout
         self.dataset = dataset
         self.global_pool_op = global_add_pool if 'add' else global_mean_pool
@@ -101,11 +103,11 @@ class CoverPool(torch.nn.Module):
         self.dropout = dropout
         self.cover_fun = cover_fun
 
-        self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
+        self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense)
         self.blocks = torch.nn.ModuleList()
         
         for _ in range(num_layers - 1):
-            self.blocks.append(Block(2 * hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage))
+            self.blocks.append(Block(2 * hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense))
 
         out_dim = 2 * num_layers * hidden if readout else 2 * hidden
         self.bn = BatchNorm1d(out_dim)
@@ -122,43 +124,81 @@ class CoverPool(torch.nn.Module):
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
     
-    def collate(self, data_list):
-        return Batch.from_data_list(data_list).to(self.device)
+    def collate(self, dataset_list):
+        if not self.dense:
+            return map(lambda ds: Batch.from_data_list(ds).to(self.device), dataset_list)
 
-    def forward(self, index):
-        hierarchy = map(self.collate, self.cover_fun(self.dataset, index.to(self.device)))
-        data = next(hierarchy)
+        num_nodes = max([data.num_nodes for data in dataset_list[0]])
+        hierarchy = []
 
-        x, edge_index, weights, batch = data.x, data.edge_index, data.edge_attr, data.batch
-        batch_size = len(index)
+        for ds in dataset_list:
+            batch = Batch()
+            to_dense = ToDense(num_nodes)
+            dense_list = [to_dense(data) for data in ds]
+
+            for key in set(dense_list[0].keys) - {'cover_index'}:
+                batch[key] = default_collate([d[key] for d in dense_list])
+            
+            if dense_list[0].cover_index is not None:
+                num_clusters = max([data.num_clusters for data in ds])
+                dense_cover = []
+
+                for data in ds:
+                    dense_cover.append(torch.sparse_coo_tensor(
+                            indices=data.cover_index,
+                            values=torch.ones_like(data.cover_index[0]), 
+                            size=torch.Size([num_nodes, num_clusters]),
+                            dtype=torch.float
+                        ).to_dense())
+
+                batch['cover_index'] = default_collate(dense_cover)
+                num_nodes = num_clusters
+            
+            hierarchy.append(batch.to(self.device))
+        
+        return iter(hierarchy)
+
+    def conv_forward(self, conv, x, data):
+        if self.dense:
+            return F.relu(conv(x, data.adj, mask=data.mask, add_loop=True))
 
         if self.graph_sage: 
-            x = F.relu(self.conv_in(x, edge_index))
-        else:
-            x = F.relu(self.conv_in(x, edge_index, weights))
+            return F.relu(conv(x, data.edge_index))
+        
+        return F.relu(conv(x, data.edge_index, data.edge_attr))
 
-        xs = [ 
-            self.global_pool_op(x, batch, batch_size), 
-            global_max_pool(x, batch, batch_size)
-        ]
+    def forward(self, index):
+        hierarchy = self.collate(self.cover_fun(self.dataset, index.to(self.device)))
+        data = next(hierarchy)
+        batch_size = len(index)
+        cover_index = data.cover_index
+
+        x = self.conv_forward(self.conv_in, data.x, data)
+        
+        if self.dense:
+            xs = [x.max(dim=1)[0], x.sum(dim=1)]
+        else:
+            xs = [ 
+                self.global_pool_op(x, data.batch, batch_size), 
+                global_max_pool(x, data.batch, batch_size)
+            ]
 
         for block, data in zip(self.blocks, hierarchy):  
-            cover_index, edge_index, weights, batch = data.cover_index, data.edge_index, data.edge_attr, data.batch
-
-            x_mean = cover_pool_node(cover_index, x, data.num_nodes, pool=self.node_pool_op)
-            x_max = cover_pool_node(cover_index, x, data.num_nodes, pool='max')
-            x = torch.cat([x_mean, x_max], dim=1)
+            x_mean = cover_pool_node(cover_index, x, data.num_nodes, pool=self.node_pool_op, dense=self.dense)
+            x_max = cover_pool_node(cover_index, x, data.num_nodes, pool='max', dense=self.dense)
+            x = torch.cat([x_mean, x_max], dim=-1)
+            cover_index = data.cover_index
 
             if self.normalize:
                 x = F.normalize(x)
 
-            if self.graph_sage:
-                x = F.relu(block(x, edge_index))
-            else:
-                x = F.relu(block(x, edge_index, weights))
+            x = self.conv_forward(block, x, data)
 
-            xs.append(self.global_pool_op(x, batch, batch_size))
-            xs.append(global_max_pool(x, batch, batch_size))
+            if self.dense:
+                xs.extend([x.max(dim=1)[0], x.sum(dim=1)])
+            else:
+                xs.append(self.global_pool_op(x, data.batch, batch_size))
+                xs.append(global_max_pool(x, data.batch, batch_size))
         
         if not self.readout:
             xs = xs[-2:]

@@ -90,7 +90,8 @@ class KPlexCover:
                 simplify=False, 
                 verbose=True):        
         it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
-        data_list = []
+        in_list = []
+        out_list = []
         
         for data in it:
             cover_index, clusters, _ = self(k, data.edge_index, data.num_nodes)
@@ -106,22 +107,25 @@ class KPlexCover:
             if simplify:
                 edge_index, weights = simplify_graph(edge_index, weights, num_nodes=clusters)
             
-            data_list.append(Cover(cover_index=cover_index,
-                                   edge_index=edge_index, 
-                                   edge_attr=weights,
-                                   num_covered_nodes=data.num_nodes, 
-                                   num_nodes=clusters))
-            
-        return CustomDataset(data_list)
+            keys = dict(data.__iter__())
+            keys['num_nodes'] = data.num_nodes
+            in_list.append(Cover(cover_index=cover_index, num_clusters=clusters, **keys))
+            out_list.append(Cover(edge_index=edge_index, edge_attr=weights, num_nodes=clusters))
+        
+        return CustomDataset(in_list), CustomDataset(out_list)
 
     def get_representations(self, dataset, ks, *args, **kwargs):
-        output = [dataset]
+        last_dataset = dataset
+        output = []
 
         if (len(args) >= 4 and args[3]) or kwargs.get('verbose', True):
             ks = tqdm(ks, desc="Creating Hierarchical Representations", leave=False)
 
         for k in ks:
-            output.append(self.process(output[-1], k, *args, **kwargs))
+            cover, last_dataset = self.process(last_dataset, k, *args, **kwargs)
+            output.append(cover)
+
+        output.append(last_dataset)
         
         return output
 

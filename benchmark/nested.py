@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('--k_step_factor', type=float, default=1.)
     parser.add_argument('--q', type=float, default=None)
     parser.add_argument('--simplify', action='store_true')
+    parser.add_argument('--dense', action='store_true')
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
@@ -109,6 +110,7 @@ if __name__ == "__main__":
         
         cover_fs = dict()
         kplex_cover = KPlexCover()
+        shared_params.update(module__dense=args.dense)
         param_grid.update(module__k=list(zip(*ks)))
     elif args.model == 'EdgePool':
         param_grid.update({
