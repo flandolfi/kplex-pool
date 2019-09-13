@@ -61,6 +61,7 @@ if __name__ == "__main__":
         torch.cuda.manual_seed_all(42)
     
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if dataset.data.x is None:
         dataset = add_node_features(dataset)
@@ -85,7 +86,7 @@ if __name__ == "__main__":
         'optimizer__weight_decay': args.weight_decay,
         'iterator_train__shuffle': True,
         'train_split': CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42)),
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+        'device': device
     }
 
     if args.model == 'CoverPool':

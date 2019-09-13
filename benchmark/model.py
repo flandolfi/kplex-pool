@@ -138,8 +138,10 @@ class CoverPool(torch.nn.Module):
 
     def forward(self, index):
         hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
-
-        if not self.dense:
+        
+        if self.dense:
+            hierarchy = map(lambda data: data.to(self.device), hierarchy)
+        else:
             hierarchy = map(self.collate, hierarchy)
         
         data = next(hierarchy)
