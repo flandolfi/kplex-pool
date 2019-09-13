@@ -187,7 +187,9 @@ class CoverPool(torch.nn.Module):
             x_mean = cover_pool_node(cover_index, x, data.num_nodes, pool=self.node_pool_op, dense=self.dense)
             x_max = cover_pool_node(cover_index, x, data.num_nodes, pool='max', dense=self.dense)
             x = torch.cat([x_mean, x_max], dim=-1)
-            cover_index = data.cover_index
+
+            if 'cover_index' in data:
+                cover_index = data.cover_index
 
             if self.normalize:
                 x = F.normalize(x)
