@@ -123,40 +123,9 @@ class CoverPool(torch.nn.Module):
         self.bn.reset_parameters()            
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
-    
-    def collate(self, dataset_list):
-        if not self.dense:
-            return map(lambda ds: Batch.from_data_list(ds).to(self.device), dataset_list)
 
-        num_nodes = max([data.num_nodes for data in dataset_list[0]])
-        hierarchy = []
-
-        for ds in dataset_list:
-            batch = Batch()
-            to_dense = ToDense(num_nodes)
-            dense_list = [to_dense(data) for data in ds]
-
-            for key in set(dense_list[0].keys) - {'cover_index'}:
-                batch[key] = default_collate([d[key] for d in dense_list])
-            
-            if dense_list[0].cover_index is not None:
-                num_clusters = max([data.num_clusters for data in ds])
-                dense_cover = []
-
-                for data in ds:
-                    dense_cover.append(torch.sparse_coo_tensor(
-                            indices=data.cover_index,
-                            values=torch.ones_like(data.cover_index[0]), 
-                            size=torch.Size([num_nodes, num_clusters]),
-                            dtype=torch.float
-                        ).to_dense())
-
-                batch['cover_index'] = default_collate(dense_cover)
-                num_nodes = num_clusters
-            
-            hierarchy.append(batch.to(self.device))
-        
-        return iter(hierarchy)
+    def collate(self, data_list):
+        return Batch.from_data_list(data_list).to(self.device)
 
     def conv_forward(self, conv, x, data):
         if self.dense:
@@ -168,7 +137,11 @@ class CoverPool(torch.nn.Module):
         return F.relu(conv(x, data.edge_index, data.edge_attr))
 
     def forward(self, index):
-        hierarchy = self.collate(self.cover_fun(self.dataset, index.to(self.device)))
+        hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
+
+        if not self.dense:
+            hierarchy = map(self.collate, hierarchy)
+        
         data = next(hierarchy)
         batch_size = len(index)
         cover_index = data.cover_index

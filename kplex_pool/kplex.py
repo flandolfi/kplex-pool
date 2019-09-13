@@ -4,7 +4,7 @@ from kplex_pool import kplex_cpu
 from kplex_pool.pool import cover_pool_node, cover_pool_edge
 from kplex_pool.simplify import simplify as simplify_graph
 from kplex_pool.utils import hub_promotion
-from kplex_pool.data import Cover, CustomDataset
+from kplex_pool.data import Cover, CustomDataset, DenseDataset
 
 from tqdm import tqdm
 
@@ -114,7 +114,7 @@ class KPlexCover:
         
         return CustomDataset(in_list), CustomDataset(out_list)
 
-    def get_representations(self, dataset, ks, *args, **kwargs):
+    def get_representations(self, dataset, ks, dense=False, *args, **kwargs):
         last_dataset = dataset
         output = []
 
@@ -126,6 +126,9 @@ class KPlexCover:
             output.append(cover)
 
         output.append(last_dataset)
+
+        if dense:
+            return [DenseDataset(ds) for ds in output]
         
         return output
 

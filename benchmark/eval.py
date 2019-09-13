@@ -101,6 +101,7 @@ if __name__ == "__main__":
 
         kplex_cover = KPlexCover(args.cover_priority, args.kplex_priority, args.skip_covered)
         cover_fun = kplex_cover.get_cover_fun(ks, dataset if args.no_cache else None, 
+                                              dense=args.dense,
                                               q=args.q,
                                               simplify=args.simplify,
                                               edge_pool_op=args.edge_pool_op,

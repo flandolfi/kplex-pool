@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 ks = params.pop('module__k')
                 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, q=args.q, simplify=args.simplify)
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, dense=args.dense, q=args.q, simplify=args.simplify)
                 
                 params['module__cover_fun'] = cover_fs[ks]
 
