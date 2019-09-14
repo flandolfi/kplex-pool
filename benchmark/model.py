@@ -26,7 +26,7 @@ from torch_geometric.nn import (
 
 from kplex_pool import KPlexCover, cover_pool_node, cover_pool_edge, simplify
 from kplex_pool.utils import hub_promotion
-from kplex_pool.data import CustomDataset
+from kplex_pool.data import CustomDataset, DenseDataset
 
 
 
@@ -201,7 +201,7 @@ class DiffPool(torch.nn.Module):
 
         num_nodes = max([data.num_nodes for data in dataset])
         to_dense = ToDense(num_nodes=num_nodes)
-        self.dataset = [to_dense(data) for data in dataset]
+        self.dataset = DenseDataset(dataset)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.dropout = dropout
 
@@ -237,16 +237,8 @@ class DiffPool(torch.nn.Module):
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
 
-    def collate(self, data_list):
-        batch = Batch()
-
-        for key in data_list[0].keys:
-            batch[key] = default_collate([d[key] for d in data_list])
-
-        return batch.to(self.device)
-
     def forward(self, index):
-        data = self.collate([self.dataset[i] for i in index.cpu().numpy().flatten()])        
+        data = self.dataset[index.flatten()].to(self.device)      
 
         x, adj, mask = data.x, data.adj, data.mask
         
