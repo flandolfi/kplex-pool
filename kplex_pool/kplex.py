@@ -16,7 +16,7 @@ class KPlexCover:
             cover_priority = ["min_degree", "min_uncovered"]
     
         if kplex_priority == "default":
-            kplex_priority = ["max_in_kplex", "max_candidates", "min_uncovered"]
+            kplex_priority = ["max_in_kplex", "max_candidates", "max_uncovered"]
     
         if not isinstance(cover_priority, list):
             cover_priority = [cover_priority]
