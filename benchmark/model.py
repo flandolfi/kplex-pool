@@ -129,7 +129,7 @@ class CoverPool(torch.nn.Module):
 
     def conv_forward(self, conv, x, data):
         if self.dense:
-            return F.relu(conv(x, data.adj, mask=data.mask, add_loop=True))
+            return F.relu(conv(x, data.adj, mask=data.mask, add_loop=False))
 
         if self.graph_sage: 
             return F.relu(conv(x, data.edge_index))
