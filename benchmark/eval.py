@@ -96,7 +96,7 @@ if __name__ == "__main__":
             ks = [args.k]
             last_k = float(args.k)
 
-            for _ in range(1, args.layers):
+            for _ in range(2, args.layers):
                 last_k *= args.k_step_factor
                 ks.append(ceil(last_k))
 
