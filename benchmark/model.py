@@ -129,12 +129,12 @@ class CoverPool(torch.nn.Module):
 
     def conv_forward(self, conv, x, data):
         if self.dense:
-            return F.relu(conv(x, data.adj, mask=data.mask, add_loop=False))
+            return F.relu(conv(x, adj=data.adj))
 
         if self.graph_sage: 
-            return F.relu(conv(x, data.edge_index))
+            return F.relu(conv(x, edge_index=data.edge_index))
         
-        return F.relu(conv(x, data.edge_index, data.edge_attr))
+        return F.relu(conv(x, edge_index=data.edge_index, edge_attr=data.edge_attr))
 
     def forward(self, index):
         hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
@@ -200,7 +200,6 @@ class DiffPool(torch.nn.Module):
         super(DiffPool, self).__init__()
 
         num_nodes = max([data.num_nodes for data in dataset])
-        to_dense = ToDense(num_nodes=num_nodes)
         self.dataset = DenseDataset(dataset)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.dropout = dropout
@@ -238,7 +237,7 @@ class DiffPool(torch.nn.Module):
         self.lin2.reset_parameters()
 
     def forward(self, index):
-        data = self.dataset[index.flatten()].to(self.device)      
+        data = self.dataset[index.view(-1)].to(self.device)     
 
         x, adj, mask = data.x, data.adj, data.mask
         
