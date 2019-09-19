@@ -134,7 +134,7 @@ class CoverPool(torch.nn.Module):
         if self.graph_sage: 
             return F.relu(conv(x, edge_index=data.edge_index))
         
-        return F.relu(conv(x, edge_index=data.edge_index, edge_attr=data.edge_attr))
+        return F.relu(conv(x, edge_index=data.edge_index, edge_weight=data.edge_attr))
 
     def forward(self, index):
         hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
