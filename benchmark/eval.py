@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--simplify', action='store_true')
+    parser.add_argument('--dense', action='store_true')
     parser.add_argument('--ratio', type=float, default=0.8)
     parser.add_argument('--split', type=float, default=0.1)
     parser.add_argument('--layers', type=int, default=3)
@@ -60,6 +61,7 @@ if __name__ == "__main__":
         torch.cuda.manual_seed_all(42)
     
     dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if dataset.data.x is None:
         dataset = add_node_features(dataset)
@@ -84,7 +86,7 @@ if __name__ == "__main__":
         'optimizer__weight_decay': args.weight_decay,
         'iterator_train__shuffle': True,
         'train_split': CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42)),
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+        'device': device
     }
 
     if args.model == 'CoverPool':
@@ -94,12 +96,13 @@ if __name__ == "__main__":
             ks = [args.k]
             last_k = float(args.k)
 
-            for _ in range(1, args.layers):
+            for _ in range(2, args.layers):
                 last_k *= args.k_step_factor
                 ks.append(ceil(last_k))
 
         kplex_cover = KPlexCover(args.cover_priority, args.kplex_priority, args.skip_covered)
         cover_fun = kplex_cover.get_cover_fun(ks, dataset if args.no_cache else None, 
+                                              dense=args.dense,
                                               q=args.q,
                                               simplify=args.simplify,
                                               edge_pool_op=args.edge_pool_op,
@@ -107,6 +110,7 @@ if __name__ == "__main__":
         params.update(
             module__cover_fun=cover_fun,
             module__normalize=args.normalize,
+            module__dense=args.dense,
             module__readout=args.no_readout,
             module__global_pool_op=args.global_pool_op,
             module__node_pool_op=args.node_pool_op

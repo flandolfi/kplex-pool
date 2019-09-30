@@ -8,7 +8,28 @@ from kplex_pool import pool_edges_cpu
 
 
 
-def cover_pool_node(cover_index, x, num_clusters=None, pool='mean'):
+def cover_pool_node(cover_index, x, num_clusters=None, pool='mean', dense=False):
+    if dense:
+        x = x.unsqueeze(0) if x.dim() == 2 else x
+        s = cover_index.unsqueeze(0) if cover_index.dim() == 2 else cover_index
+        clusters = s.size(-1)
+
+        if pool in {'add', 'mean'}:
+            x = torch.bmm(s.transpose(1, 2), x)
+
+            if pool == 'mean':
+                x = x / s.sum(dim=1).unsqueeze(-1).clamp(min=1)
+
+            return x
+        
+        op = getattr(torch, pool if pool is not "add" else "sum")
+        x = op(x.unsqueeze(2).repeat(1, 1, clusters, 1) * s.unsqueeze(-1), dim=1)
+
+        if isinstance(x, tuple):
+            x = x[0]
+
+        return x
+
     if num_clusters is None:
         num_clusters = cover_index[1].max().item() + 1
     
