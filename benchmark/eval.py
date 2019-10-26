@@ -25,8 +25,8 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--cover_priority', type=str, default='default')
     parser.add_argument('--kplex_priority', type=str, default='default')
-    parser.add_argument('--global_pool_op', type=str, default='add')
-    parser.add_argument('--node_pool_op', type=str, default='add')
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add', 'max'])
+    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
     parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
     parser.add_argument('--epochs', type=int, default=100)
@@ -78,6 +78,7 @@ if __name__ == "__main__":
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
+        'module__device':device,
         'max_epochs': args.epochs,
         'batch_size': args.batch_size,
         'lr': args.lr,
@@ -117,7 +118,7 @@ if __name__ == "__main__":
         )
     elif args.model == 'EdgePool':
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
-    else:
+    elif args.model != 'BaseModel':
         params.update(module__ratio=args.ratio)
 
     NeuralNetClassifier(**params).fit(X, y)
