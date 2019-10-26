@@ -214,17 +214,17 @@ class CoverPool(BaseModel):
                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, self.dense))
 
     def collate(self, index):
-        self.hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
+        self.hierarchy = self.cover_fun(self.dataset, index.view(-1).to(self.device))
         
         if self.dense:
-            self.hierarchy = map(lambda data: data.to(self.device), self.hierarchy)
+            self.hierarchy = [data.to(self.device) for data in self.hierarchy]
         else:
-            self.hierarchy = map(lambda data: Batch.from_data_list(data).to(self.device), self.hierarchy)
+            self.hierarchy = [Batch.from_data_list(data).to(self.device) for data in self.hierarchy]
 
-        return next(self.hierarchy)
+        return self.hierarchy[0]
 
-    def pool(self, data, _):
-        cover = next(self.hierarchy)
+    def pool(self, data, layer):
+        cover = self.hierarchy[layer + 1]
         xs = []
 
         for op in self.node_pool_op:
