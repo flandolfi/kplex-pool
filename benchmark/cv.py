@@ -115,17 +115,10 @@ if __name__ == "__main__":
     }
 
     if args.model == 'CoverPool':
-        last_k = 2**np.arange(np.log2(args.max_k) + 1).astype(int)
-        ks = [last_k]
-
-        for _ in range(args.max_layers - 2):
-            last_k = np.ceil(last_k*args.k_step_factor).astype(int)
-            ks.append(last_k)
-        
         cover_fs = dict()
         kplex_cover = KPlexCover()
         shared_params.update(module__dense=args.dense)
-        param_grid.update(module__k=list(zip(*ks)))
+        param_grid.update(module__k=2**np.arange(np.log2(args.max_k) + 1).astype(int))
     elif args.model == 'EdgePool':
         param_grid.update({
             'module__method': ['softmax', 'tanh'],
@@ -163,11 +156,18 @@ if __name__ == "__main__":
             gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
 
             if args.model == 'CoverPool':
-                ks = params.pop('module__k')
+                last_k = params.pop('module__k')
+                ks = [last_k]
+
+                for _ in range(1, params['module__num_layers']):
+                    last_k = np.ceil(last_k*args.k_step_factor).astype(int)
+                    ks.append(last_k)
                 
+                ks = tuple(ks)
+
                 if ks not in cover_fs:
                     cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, dense=args.dense, q=args.q, simplify=args.simplify)
-                
+
                 params['module__cover_fun'] = cover_fs[ks]
             
             net = NeuralNetClassifier(
