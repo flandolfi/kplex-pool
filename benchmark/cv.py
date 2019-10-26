@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     shared_params = {
         'module': getattr(model, args.model), 
-        'module__dataset': dataset,]
+        'module__dataset': dataset,
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
