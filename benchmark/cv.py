@@ -118,7 +118,7 @@ if __name__ == "__main__":
         last_k = 2**np.arange(np.log2(args.max_k) + 1).astype(int)
         ks = [last_k]
 
-        for _ in range(args.layers - 2):
+        for _ in range(args.max_layers - 2):
             last_k = np.ceil(last_k*args.k_step_factor).astype(int)
             ks.append(last_k)
         
