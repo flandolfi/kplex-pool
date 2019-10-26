@@ -111,7 +111,7 @@ if __name__ == "__main__":
         'optimizer__lr': [1e-3, 5e-4, 2e-4, 1e-4],
         'module__graph_sage': [True, False],
         'module__hidden': [64, 128],
-        'module__num_layers': list(range(2, args_max_layers + 1))
+        'module__num_layers': list(range(2, args.max_layers + 1))
     }
 
     if args.model == 'CoverPool':
