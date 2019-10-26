@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('--q', type=float, default=None)
     parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--dense', action='store_true')
-    parser.add_argument('--patience', type=int, default=25)
+    parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--folds', type=int, default=10)
