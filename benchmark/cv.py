@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
         net = NeuralNetClassifier(
             train_split=predefined_split(valid_ds), 
-            max_epochs=args.max_epocs,
+            max_epochs=args.max_epochs,
             callbacks=[
                 ('early_stopping', EarlyStopping),
                 ('test_acc', EpochScoring)
