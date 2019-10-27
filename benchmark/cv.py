@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--folds', type=int, default=10)
-    parser.add_argument('--max_layers', type=int, default=4)
+    parser.add_argument('--max_layers', type=int, default=3)
     parser.add_argument('--inner_layers', type=int, default=2)
     parser.add_argument('--to_pickle', type=str, default='cv_results.pickle')
     parser.add_argument('--from_pickle', type=str, default=None)
