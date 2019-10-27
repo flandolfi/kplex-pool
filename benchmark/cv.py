@@ -159,7 +159,7 @@ if __name__ == "__main__":
                 last_k = params.pop('module__k')
                 ks = [last_k]
 
-                for _ in range(1, params['module__num_layers']):
+                for _ in range(2, params['module__num_layers']):
                     last_k = np.ceil(last_k*args.k_step_factor).astype(int)
                     ks.append(last_k)
                 
