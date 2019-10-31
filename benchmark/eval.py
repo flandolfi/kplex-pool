@@ -78,6 +78,10 @@ if __name__ == "__main__":
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
+        'module__normalize': args.normalize,
+        'module__dense': args.dense,
+        'module__readout': args.no_readout,
+        'module__global_pool_op': args.global_pool_op,
         'module__device':device,
         'max_epochs': args.epochs,
         'batch_size': args.batch_size,
@@ -110,10 +114,6 @@ if __name__ == "__main__":
                                               verbose=True if args.no_cache else False)
         params.update(
             module__cover_fun=cover_fun,
-            module__normalize=args.normalize,
-            module__dense=args.dense,
-            module__readout=args.no_readout,
-            module__global_pool_op=args.global_pool_op,
             module__node_pool_op=args.node_pool_op
         )
     elif args.model == 'EdgePool':
