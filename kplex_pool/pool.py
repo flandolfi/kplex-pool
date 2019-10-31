@@ -8,27 +8,28 @@ from kplex_pool import pool_edges_cpu
 
 
 
-def cover_pool_node(cover_index, x, num_clusters=None, pool='mean', dense=False):
+def cover_pool_node(cover_index, x, pool='add', dense=False, cover_mask=None):
     if dense:
-        x = x.unsqueeze(0) if x.dim() == 2 else x
+        out = x.unsqueeze(0) if x.dim() == 2 else x
         s = cover_index.unsqueeze(0) if cover_index.dim() == 2 else cover_index
-        clusters = s.size(-1)
+        batch_size, _, clusters = s.size()
 
         if pool in {'add', 'mean'}:
-            x = torch.bmm(s.transpose(1, 2), x)
+            out = torch.bmm(s.transpose(1, 2), out)
 
             if pool == 'mean':
-                x = x / s.sum(dim=1).unsqueeze(-1).clamp(min=1)
+                out = out / s.sum(dim=1).unsqueeze(-1).clamp(min=1)
+        else:
+            op = getattr(torch, pool if pool is not "add" else "sum")
+            out = op(out.unsqueeze(2).repeat(1, 1, clusters, 1) * s.unsqueeze(-1), dim=1)
 
-            return x
+            if isinstance(out, tuple):
+                out = out[0]
         
-        op = getattr(torch, pool if pool is not "add" else "sum")
-        x = op(x.unsqueeze(2).repeat(1, 1, clusters, 1) * s.unsqueeze(-1), dim=1)
+        if cover_mask is not None:
+            out = out * cover_mask.view(batch_size, clusters, 1).to(x.dtype)
 
-        if isinstance(x, tuple):
-            x = x[0]
-
-        return x
+        return out
 
     if num_clusters is None:
         num_clusters = cover_index[1].max().item() + 1
