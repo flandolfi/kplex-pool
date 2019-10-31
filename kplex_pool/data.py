@@ -99,16 +99,19 @@ class DenseDataset(Dataset):
         max_nodes = mask.type(torch.uint8).argmax(-1).max().item() + 1
         out = Batch()
 
-        for key, item in self.data('x', 'pos', 'y', 'mask'):
+        for key, item in self.data('x', 'pos', 'mask'):
             out[key] = item[idx, :max_nodes]
 
         out.adj = self.data.adj[idx, :max_nodes, :max_nodes]
+        
+        if 'y' in self.data:
+            out.y = self.data.y[idx]
         
         if 'cover_index' in self.data:
             cover_mask = self.data.cover_mask[idx]
             max_clusters = cover_mask.type(torch.uint8).argmax(-1).max().item() + 1
             out.cover_index = self.data.cover_index[idx, :max_nodes, :max_clusters]
-            out.cover_mask = self.data.cover_mask[idx, :max_clusters]
+            out.cover_mask = cover_mask[:, :max_clusters]
 
         return out
 
