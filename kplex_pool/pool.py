@@ -8,7 +8,7 @@ from kplex_pool import pool_edges_cpu
 
 
 
-def cover_pool_node(cover_index, x, pool='add', dense=False, cover_mask=None):
+def cover_pool_node(cover_index, x, num_clusters=None, pool='add', dense=False, cover_mask=None):
     if dense:
         out = x.unsqueeze(0) if x.dim() == 2 else x
         s = cover_index.unsqueeze(0) if cover_index.dim() == 2 else cover_index
