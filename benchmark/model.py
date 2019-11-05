@@ -45,11 +45,11 @@ class Block(torch.nn.Module):
         self.graph_sage = graph_sage
         self.convs = ModuleList([
             module(in_channels if l == 0 else hidden_channels, 
-                   hidden_channels if mode is not None or l < num_layers - 1 else out_channels) 
+                   hidden_channels if mode or l < num_layers - 1 else out_channels) 
             for l in range(num_layers)
         ])
 
-        if mode is not None:
+        if mode:
             self.jump = JumpingKnowledge(mode, hidden_channels, num_layers)
 
             if mode == 'cat':
@@ -61,10 +61,9 @@ class Block(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         
-        if self.mode is not None:
+        if self.mode:
             self.lin.reset_parameters()
-        
-        self.jump.reset_parameters()
+            self.jump.reset_parameters()
 
     def forward(self, data):
         x = data.x
@@ -72,17 +71,21 @@ class Block(torch.nn.Module):
 
         for conv in self.convs:
             if self.dense:
-                x = F.relu(conv(x, data.adj, mask=data.mask, add_loop=True))
+                x = conv(x, data.adj, mask=data.mask, add_loop=True)
             else:
                 if self.graph_sage:
-                    x = F.relu(conv(x, data.edge_index))
+                    x = conv(x, data.edge_index)
                 else:
-                    x = F.relu(conv(x, data.edge_index, data.edge_attr))
+                    x = conv(x, data.edge_index, data.edge_attr)
             
+            x = F.relu(x)
             xs.append(x)
-        
-        if self.mode is not None:
-            x = self.lin(self.jump(xs))
+
+        if self.mode:
+            x = F.relu(self.lin(self.jump(xs)))
+
+            if self.dense:
+                x = x * data.mask.unsqueeze(-1).type(x.dtype)
         
         return x
 
@@ -114,7 +117,7 @@ class BaseModel(torch.nn.Module):
         self.graph_sage = graph_sage
         self.dense = dense
         self.readout = readout
-        self.dataset = dataset
+        self.dataset = DenseDataset(dataset) if dense else dataset
         self.dropout = dropout
 
         gps = global_pool_op if isinstance(global_pool_op, list) else [global_pool_op]
@@ -128,7 +131,7 @@ class BaseModel(torch.nn.Module):
                 elif op == 'add':
                     self.global_pool_op.append(lambda x, _1, _2: torch.sum(x, dim=1))
                 elif op == 'max' or op == 'min':
-                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, im=1)[0])
+                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1)[0])
                 else:
                     self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1))
         else:
@@ -228,7 +231,7 @@ class CoverPool(BaseModel):
         xs = []
 
         for op in self.node_pool_op:
-            xs.append(cover_pool_node(data.cover_index, data.x, cover.num_nodes, pool=op, dense=self.dense))
+            xs.append(cover_pool_node(data.cover_index, data.x, cover.num_nodes, op, self.dense, data.cover_mask if self.dense else None))
         
         cover.x = torch.cat(xs, dim=-1)
 
@@ -241,7 +244,6 @@ class DiffPool(BaseModel):
     def __init__(self, ratio=0.25, **kwargs):
         super(DiffPool, self).__init__(dense=True, **kwargs)
 
-        self.dataset = DenseDataset(self.dataset)
         num_nodes = self.dataset.max_nodes
         self.link_loss, self.ent_loss = 0., 0.
 
