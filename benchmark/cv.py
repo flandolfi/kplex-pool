@@ -17,6 +17,7 @@ from skorch.dataset import Dataset
 from benchmark import model
 from kplex_pool import KPlexCover
 from kplex_pool.utils import add_node_features
+from kplex_pool.data import NDPDataset, CustomDataset
 
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, ParameterGrid
 from sklearn.metrics import accuracy_score
@@ -46,6 +47,8 @@ if __name__ == "__main__":
     parser.add_argument('--q', type=float, default=None)
     parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--dense', action='store_true')
+    parser.add_argument('--easy', action='store_true')
+    parser.add_argument('--small', action='store_true')
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
@@ -77,17 +80,40 @@ if __name__ == "__main__":
         torch.cuda.manual_seed_all(42)
         device = 'cuda' 
     
-    dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+    if args.dataset == 'NDPDataset':
+        train, val, test = (NDPDataset('data/', 
+                                       split=key, 
+                                       easy=args.easy, 
+                                       small=args.small) 
+                            for key in ['train', 'val', 'test'])
+        train_stop = len(train)
+        val_stop = train_stop + len(val)
+        test_stop = val_stop + len(test)
+        train_idx = np.arange(train_stop)
+        val_idx = np.arange(train_stop, val_stop)
+        test_idx = np.arange(val_stop, test_stop)
 
-    if dataset.data.x is None:
-        dataset = add_node_features(dataset)
-        
-    X = np.arange(len(dataset)).reshape((-1, 1))
-    y = dataset.data.y.numpy()
+        dataset = CustomDataset(list(train) + list(val) + list(test))
+        skf_pbar = tqdm([(train_idx, test_idx)], disable=True) 
+            
+        X = np.arange(len(dataset)).reshape((-1, 1))
+        y = dataset.data.y.numpy()
 
-    skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=42)
-    skf_pbar = tqdm(list(skf.split(X, y)), leave=True, position=0, desc='Outer CV')
-    sss_split = 1./(args.folds - 1)
+        benchmark = True
+    else:
+        dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+
+        if dataset.data.x is None:
+            dataset = add_node_features(dataset)
+            
+        X = np.arange(len(dataset)).reshape((-1, 1))
+        y = dataset.data.y.numpy()
+
+        skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=42)
+        skf_pbar = tqdm(list(skf.split(X, y)), leave=True, desc='Outer CV')
+        sss_split = 1./(args.folds - 1)
+        benchmark = False
+    
     results = []
     test_acc = []
 
@@ -135,18 +161,22 @@ if __name__ == "__main__":
         test_X = X[test_idx]
         test_y = y[test_idx]
 
-        gs_pbar = tqdm(list(ParameterGrid(param_grid)), leave=True, position=1, desc='Grid Search')
-        in_sss = StratifiedShuffleSplit(n_splits=1, test_size=sss_split, random_state=42)
-        train_idx, val_idx = next(in_sss.split(train_X, train_y))
+        if benchmark:
+            val_X = X[val_idx]
+            val_y = y[val_idx]
+        else:
+            in_sss = StratifiedShuffleSplit(n_splits=1, test_size=sss_split, random_state=42)
+            train_idx, val_idx = next(in_sss.split(train_X, train_y))
 
-        val_X = train_X[val_idx]
-        val_y = train_y[val_idx]
-        train_X = train_X[train_idx]
-        train_y = train_y[train_idx]
+            val_X = train_X[val_idx]
+            val_y = train_y[val_idx]
+            train_X = train_X[train_idx]
+            train_y = train_y[train_idx]
         
         valid_ds = Dataset(val_X, val_y)
         test_ds = Dataset(test_X, test_y)
 
+        gs_pbar = tqdm(list(ParameterGrid(param_grid)), leave=True, desc='Grid Search')
         test_scoring = TestScoring(test_ds)
 
         best_acc = 0.
