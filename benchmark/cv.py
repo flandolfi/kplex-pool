@@ -250,10 +250,16 @@ if __name__ == "__main__":
         df['fold'] = out_iter
 
         results.append(df)
+        skf_pbar.set_postfix({
+            'Accuracy': '{:.2f} ± {:.2f}\n'.format(
+                    100.*np.mean(test_acc), 
+                    100.*np.std(test_acc)
+                )
+            })
     
     skf_pbar.close()
 
-    print("\nAccuracy: {:.2f} ± {:.2f}\n".format(
+    print('\nAccuracy: {:.2f} ± {:.2f}\n'.format(
         100.*np.mean(test_acc), 
         100.*np.std(test_acc)
     ))
