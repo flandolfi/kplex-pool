@@ -140,7 +140,9 @@ if __name__ == "__main__":
         )
     elif args.model == 'EdgePool':
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
-    elif args.model != 'BaseModel':
-        params.update(module__ratio=args.ratio, module__dense=args.dense)
+    elif args.model == 'BaseModel':
+        params.update(module__dense=args.dense)
+    else:
+        params.update(module__ratio=args.ratio)
 
     NeuralNetClassifier(**params).fit(X, y)
