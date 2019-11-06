@@ -101,7 +101,6 @@ if __name__ == "__main__":
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
         'module__normalize': args.normalize,
-        'module__dense': args.dense,
         'module__readout': args.no_readout,
         'module__global_pool_op': args.global_pool_op,
         'module__device':device,
@@ -136,11 +135,12 @@ if __name__ == "__main__":
                                               verbose=True if args.no_cache else False)
         params.update(
             module__cover_fun=cover_fun,
-            module__node_pool_op=args.node_pool_op
+            module__node_pool_op=args.node_pool_op,
+            module__dense=args.dense
         )
     elif args.model == 'EdgePool':
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
     elif args.model != 'BaseModel':
-        params.update(module__ratio=args.ratio)
+        params.update(module__ratio=args.ratio, module__dense=args.dense)
 
     NeuralNetClassifier(**params).fit(X, y)

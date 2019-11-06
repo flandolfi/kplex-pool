@@ -150,7 +150,9 @@ if __name__ == "__main__":
             'module__method': ['softmax', 'tanh'],
             'module__edge_dropout': [0.0, 0.2]
         })
-    elif args.model != 'BaseModel':
+    elif args.model == 'BaseModel':
+        shared_params.update(module__dense=args.dense)
+    else:
         param_grid.update({
             'module__ratio': [0.25, 0.5, 0.75]
         })
