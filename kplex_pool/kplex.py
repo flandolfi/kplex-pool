@@ -114,11 +114,11 @@ class KPlexCover:
         
         return CustomDataset(in_list), CustomDataset(out_list)
 
-    def get_representations(self, dataset, ks, dense=False, *args, **kwargs):
+    def get_representations(self, dataset, ks, verbose=True, *args, **kwargs):
         last_dataset = dataset
         output = []
 
-        if (len(args) >= 4 and args[3]) or kwargs.get('verbose', True):
+        if verbose:
             ks = tqdm(ks, desc="Creating Hierarchical Representations", leave=False)
 
         for k in ks:
@@ -126,16 +126,21 @@ class KPlexCover:
             output.append(cover)
 
         output.append(last_dataset)
-
-        if dense:
-            return [DenseDataset(ds) for ds in output]
         
         return output
 
-    def get_cover_fun(self, ks, dataset=None, *args, **kwargs):
-        if dataset is None:
-            return lambda ds, idx: self.get_representations(ds[idx], ks, *args, **kwargs)
+    def get_cover_fun(self, ks, dataset=None, dense=False, *args, **kwargs):
+        def cover_fun(ds, idx):
+            hierarchy = self.get_representations(ds[idx], ks, *args, **kwargs)
 
-        cache = self.get_representations(dataset, ks, *args, **kwargs)
+            if dense:
+                return [DenseDataset(ds) for ds in hierarchy]
+            
+            return hierarchy
+
+        if dataset is None:
+            return cover_fun
+
+        cache = cover_fun(dataset, slice(None))
 
         return lambda _, idx: [ds[idx] for ds in cache]

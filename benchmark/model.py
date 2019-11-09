@@ -41,14 +41,15 @@ class Block(torch.nn.Module):
             module = SAGEConv if graph_sage else GCNConv
 
         self.mode = mode
+        self.dense = dense
         self.graph_sage = graph_sage
         self.convs = ModuleList([
             module(in_channels if l == 0 else hidden_channels, 
-                   hidden_channels if mode is not None or l < num_layers - 1 else out_channels) 
+                   hidden_channels if mode or l < num_layers - 1 else out_channels) 
             for l in range(num_layers)
         ])
 
-        if mode is not None:
+        if mode:
             self.jump = JumpingKnowledge(mode, hidden_channels, num_layers)
 
             if mode == 'cat':
@@ -60,27 +61,38 @@ class Block(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         
-        if self.mode is not None:
+        if self.mode:
             self.lin.reset_parameters()
-        
-        self.jump.reset_parameters()
+            self.jump.reset_parameters()
 
-    def forward(self, x, *args, **kwargs):
+    def forward(self, data):
+        x = data.x
         xs = []
 
         for conv in self.convs:
-            x = F.relu(conv(x, *args, **kwargs))
+            if self.dense:
+                x = conv(x, data.adj, mask=data.mask, add_loop=True)
+            else:
+                if self.graph_sage:
+                    x = conv(x, data.edge_index)
+                else:
+                    x = conv(x, data.edge_index, data.edge_attr)
+            
+            x = F.relu(x)
             xs.append(x)
-        
-        if self.mode is not None:
-            x = self.lin(self.jump(xs))
+
+        if self.mode:
+            x = F.relu(self.lin(self.jump(xs)))
+
+            if self.dense:
+                x = x * data.mask.unsqueeze(-1).type(x.dtype)
         
         return x
 
 
-class CoverPool(torch.nn.Module):
-    def __init__(self, dataset, cover_fun, hidden,
-                 num_layers=2, 
+class BaseModel(torch.nn.Module):
+    def __init__(self, dataset, hidden,
+                 num_layers=3, 
                  num_inner_layers=2, 
                  dropout=0.3,
                  readout=True, 
@@ -88,31 +100,59 @@ class CoverPool(torch.nn.Module):
                  dense=False, 
                  normalize=False, 
                  jumping_knowledge='cat',
-                 global_pool_op='add', 
-                 node_pool_op='add'):
-        super(CoverPool, self).__init__()
+                 global_pool_op='add',
+                 device=None):
+        super(BaseModel, self).__init__()
 
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
+
+        self.hidden = hidden
+        self.num_layers = num_layers
+        self.num_inner_layers = num_inner_layers
+        self.jumping_knowledge = jumping_knowledge
         self.normalize = normalize
         self.graph_sage = graph_sage
         self.dense = dense
         self.readout = readout
-        self.dataset = dataset
-        self.global_pool_op = global_add_pool if 'add' else global_mean_pool
-        self.node_pool_op = node_pool_op
+        self.dataset = DenseDataset(dataset) if dense else dataset
         self.dropout = dropout
-        self.cover_fun = cover_fun
+
+        gps = global_pool_op if isinstance(global_pool_op, list) else [global_pool_op]
+        
+        if dense:
+            self.global_pool_op = []
+
+            for op in gps:
+                if callable(op):
+                    self.global_pool_op.append(op)
+                elif op == 'add':
+                    self.global_pool_op.append(lambda x, _1, _2: torch.sum(x, dim=1))
+                elif op == 'max' or op == 'min':
+                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1)[0])
+                else:
+                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1))
+        else:
+            self.global_pool_op = [getattr(torch_geometric.nn, f'global_{op}_pool') for op in gps]
 
         self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense)
         self.blocks = torch.nn.ModuleList()
         
         for _ in range(num_layers - 1):
-            self.blocks.append(Block(2 * hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense))
+            self.blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense))
 
-        out_dim = 2 * num_layers * hidden if readout else 2 * hidden
+        out_dim = len(gps) * num_layers * hidden if readout else len(gps) * hidden
         self.bn = BatchNorm1d(out_dim)
         self.lin1 = Linear(out_dim, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
+    
+    def collate(self, index):
+        if self.dense:
+            return self.dataset[index.view(-1)].to(self.device)
+        
+        return Batch.from_data_list(self.dataset[index.view(-1)]).to(self.device)
 
     def reset_parameters(self):
         self.conv_in.reset_parameters()
@@ -123,59 +163,28 @@ class CoverPool(torch.nn.Module):
         self.bn.reset_parameters()            
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
+    
+    def global_pool(self, x, batch, batch_size):
+        return [op(x, batch, batch_size) for op in self.global_pool_op]
 
-    def collate(self, data_list):
-        return Batch.from_data_list(data_list).to(self.device)
-
-    def conv_forward(self, conv, x, data):
-        if self.dense:
-            return F.relu(conv(x, adj=data.adj))
-
-        if self.graph_sage: 
-            return F.relu(conv(x, edge_index=data.edge_index))
-        
-        return F.relu(conv(x, edge_index=data.edge_index, edge_weight=data.edge_attr))
+    def pool(self, data, layer):
+        return data
 
     def forward(self, index):
-        hierarchy = iter(self.cover_fun(self.dataset, index.view(-1).to(self.device)))
-        
-        if self.dense:
-            hierarchy = map(lambda data: data.to(self.device), hierarchy)
-        else:
-            hierarchy = map(self.collate, hierarchy)
-        
-        data = next(hierarchy)
+        data = self.collate(index)
         batch_size = len(index)
-        cover_index = data.cover_index
 
-        x = self.conv_forward(self.conv_in, data.x, data)
-        
-        if self.dense:
-            xs = [x.max(dim=1)[0], x.sum(dim=1)]
-        else:
-            xs = [ 
-                self.global_pool_op(x, data.batch, batch_size), 
-                global_max_pool(x, data.batch, batch_size)
-            ]
+        data.x = self.conv_in(data)
+        xs = self.global_pool(data.x, data.batch, batch_size)
 
-        for block, data in zip(self.blocks, hierarchy):  
-            x_mean = cover_pool_node(cover_index, x, data.num_nodes, pool=self.node_pool_op, dense=self.dense)
-            x_max = cover_pool_node(cover_index, x, data.num_nodes, pool='max', dense=self.dense)
-            x = torch.cat([x_mean, x_max], dim=-1)
-
-            if 'cover_index' in data:
-                cover_index = data.cover_index
+        for layer, block in enumerate(self.blocks):  
+            data = self.pool(data, layer)
 
             if self.normalize:
-                x = F.normalize(x)
+                data.x = F.normalize(data.x)
 
-            x = self.conv_forward(block, x, data)
-
-            if self.dense:
-                xs.extend([x.max(dim=1)[0], x.sum(dim=1)])
-            else:
-                xs.append(self.global_pool_op(x, data.batch, batch_size))
-                xs.append(global_max_pool(x, data.batch, batch_size))
+            data.x = block(data)
+            xs.extend(self.global_pool(data.x, data.batch, batch_size))
         
         if not self.readout:
             xs = xs[-2:]
@@ -191,82 +200,96 @@ class CoverPool(torch.nn.Module):
     def __repr__(self):
         return self.__class__.__name__
 
+
+class CoverPool(BaseModel):
+    def __init__(self, cover_fun, node_pool_op='add', **kwargs):
+        super(CoverPool, self).__init__(**kwargs)
+
+        self.cover_fun = cover_fun
+        self.hierarchy = []
+        self.node_pool_op = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
+
+        if len(self.node_pool_op) > 1:
+            self.blocks = torch.nn.ModuleList()
+            
+            for _ in range(self.num_layers - 1):
+                self.blocks.append(Block(len(self.node_pool_op)*self.hidden, self.hidden, self.hidden, 
+                                         self.num_inner_layers, self.jumping_knowledge, self.graph_sage, self.dense))
+
+    def collate(self, index):
+        self.hierarchy = self.cover_fun(self.dataset, index.view(-1).to(self.device))
+        
+        if self.dense:
+            self.hierarchy = [data.to(self.device) for data in self.hierarchy]
+        else:
+            self.hierarchy = [Batch.from_data_list(data).to(self.device) for data in self.hierarchy]
+
+        return self.hierarchy[0]
+
+    def pool(self, data, layer):
+        cover = self.hierarchy[layer + 1]
+        xs = []
+
+        for op in self.node_pool_op:
+            xs.append(cover_pool_node(data.cover_index, data.x, cover.num_nodes, op, self.dense, data.cover_mask if self.dense else None))
+        
+        cover.x = torch.cat(xs, dim=-1)
+
+        return cover
+
 # Other models used for comparison, slightly modified from
 # https://github.com/rusty1s/pytorch_geometric/tree/master/benchmark/kernel
 
-class DiffPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, ratio=0.25, dropout=0.3,
-                 num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
-        super(DiffPool, self).__init__()
+class DiffPool(BaseModel):
+    def __init__(self, ratio=0.25, **kwargs):
+        super(DiffPool, self).__init__(dense=True, **kwargs)
 
-        num_nodes = max([data.num_nodes for data in dataset])
-        self.dataset = DenseDataset(dataset)
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.dropout = dropout
+        num_nodes = self.dataset.max_nodes
+        self.link_loss, self.ent_loss = 0., 0.
 
         if isinstance(ratio, list):
-            num_layers = len(ratio) + 1
+            self.num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, num_layers)]
+            self.ratios = [ratio for _ in range(1, self.num_layers)]
 
-        self.embed_blocks = torch.nn.ModuleList()
         self.pool_blocks = torch.nn.ModuleList()
-        self.embed_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
-        self.pool_blocks.append(Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
 
-        for r in self.ratios:
-            num_nodes = ceil(r * float(num_nodes))
-            self.embed_blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, True))
-            self.pool_blocks.append(Block(hidden, hidden, num_nodes, num_inner_layers, jumping_knowledge, graph_sage, True))
-
-        self.jump = JumpingKnowledge(mode='cat')
-        self.bn = BatchNorm1d(num_layers * hidden * 2)
-        self.lin1 = Linear(num_layers * hidden * 2, hidden)
-        self.lin2 = Linear(hidden, dataset.num_classes)
+        for layer, ratio in enumerate(self.ratios):
+            num_nodes = ceil(ratio * float(num_nodes))
+            self.pool_blocks.append(Block(self.dataset.num_features if layer == 0 else self.hidden, self.hidden, num_nodes, 
+                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, True))
 
     def reset_parameters(self):
-        for embed_block, pool_block in zip(self.embed_blocks,
-                                           self.pool_blocks):
-            embed_block.reset_parameters()
-            pool_block.reset_parameters()
-            
-        self.jump.reset_parameters()
-        self.bn.reset_parameters()
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
+        super(DiffPool, self).reset_parameters()
+
+        for block in self.pool_blocks:
+            block.reset_parameters()
+    
+    def collate(self, index):
+        data = super(DiffPool, self).collate(index)
+        data.old_x = data.x
+
+        return data
+    
+    def pool(self, data, layer):
+        data.x, data.old_x = data.old_x, data.x
+        s = self.pool_blocks[layer](data)
+        data.x, data.adj, link_loss, ent_loss = dense_diff_pool(data.old_x, data.adj, s, data.mask)
+        data.old_x = data.x
+        data.mask = torch.ones(data.x.size()[:-1], dtype=torch.uint8, device=self.device)
+
+        if layer == 0:
+            self.link_loss = link_loss
+            self.ent_loss = ent_loss
+        else:
+            self.link_loss += link_loss
+            self.ent_loss += ent_loss
+
+        return data
 
     def forward(self, index):
-        data = self.dataset[index.view(-1)].to(self.device)     
-
-        x, adj, mask = data.x, data.adj, data.mask
-        
-        s = self.pool_blocks[0](x, adj, mask=mask, add_loop=True)
-        x = F.relu(self.embed_blocks[0](x, adj, mask=mask, add_loop=True))
-        xs = [x.sum(dim=1), x.max(dim=1)[0]]
-        x, adj, link_loss, ent_loss = dense_diff_pool(x, adj, s, mask)
-
-        for i, (embed_block, pool_block) in enumerate(
-                zip(self.embed_blocks[1:], self.pool_blocks[1:])):
-            s = pool_block(x, adj)
-            x = F.relu(embed_block(x, adj))
-            xs.extend([x.sum(dim=1), x.max(dim=1)[0]])
-
-            if i < len(self.embed_blocks) - 1:
-                x, adj, l, e = dense_diff_pool(x, adj, s)
-                link_loss += l
-                ent_loss += e
-
-        x = self.jump(xs)
-        x = self.bn(x)
-        x = F.relu(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin2(x)
-
-        return F.softmax(x, dim=-1), link_loss, ent_loss
-
-    def __repr__(self):
-        return self.__class__.__name__
+        return super(DiffPool, self).forward(index), self.link_loss, self.ent_loss
 
 
 class PoolLoss(torch.nn.Module):
@@ -285,232 +308,79 @@ class PoolLoss(torch.nn.Module):
             + self.ent_weight*ent_loss
 
 
-class TopKPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, ratio=0.8, dropout=0.3,
-                 num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
-        super(TopKPool, self).__init__()
-        self.dataset = dataset
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.graph_sage = graph_sage
-        self.dropout = dropout
-
-        self.convs = torch.nn.ModuleList([
-            Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
-        ])
-
-        self.convs.extend([
-            Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
-            for i in range(num_layers - 1)
-        ])
+class TopKPool(BaseModel):
+    def __init__(self, ratio=0.8, **kwargs):
+        super(TopKPool, self).__init__(dense=False, **kwargs)
+        self.ratio = ratio
 
         if isinstance(ratio, list):
-            num_layers = len(ratio) + 1
+            self.num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, num_layers)]
+            self.ratios = [ratio for _ in range(1, self.num_layers)]
 
-        self.pools = torch.nn.ModuleList([
-            TopKPooling(hidden, r) for r in self.ratios
+        self.pool_blocks = torch.nn.ModuleList([
+            TopKPooling(self.hidden, r) for r in self.ratios
         ])
-
-        self.jump = JumpingKnowledge(mode='cat')
-        self.bn = BatchNorm1d(num_layers * hidden * 2)
-        self.lin1 = Linear(num_layers * hidden * 2, hidden)
-        self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
-        for conv in self.convs:
-            conv.reset_parameters()
+        super(TopKPool, self).reset_parameters()
 
-        for pool in self.pools:
+        for pool in self.pool_blocks:
             pool.reset_parameters()
-
-        self.jump.reset_parameters()
-        self.bn.reset_parameters()
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
     
-    def collate(self, data_list):
-        return Batch.from_data_list(data_list).to(self.device)
+    def pool(self, data, layer):
+        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer](data.x, data.edge_index, 
+                                                                                            data.edge_attr, data.batch)
 
-    def forward(self, index):
-        data = self.collate(self.dataset[index])
+        return data
 
-        x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
-
-        if self.graph_sage:
-            x = F.relu(self.convs[0](x, edge_index))
-        else:
-            x = F.relu(self.convs[0](x, edge_index, edge_attr))
-
-        xs = [global_add_pool(x, batch), global_max_pool(x, batch)]
-
-        for conv, pool in zip(self.convs[1:], self.pools):
-            x, edge_index, edge_attr, batch, _, _ = pool(x, edge_index, edge_attr, batch=batch)
-
-            if self.graph_sage:
-                x = F.relu(conv(x, edge_index))
-            else:
-                x = F.relu(conv(x, edge_index, edge_attr))
-
-            xs.extend([global_add_pool(x, batch), global_max_pool(x, batch)])
-
-        x = self.jump(xs)
-        x = self.bn(x)
-        x = F.relu(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin2(x)
-        
-        return F.softmax(x, dim=-1)
-
-    def __repr__(self):
-        return self.__class__.__name__
-
-
-class SAGPool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, ratio=0.5, dropout=0.3, gnn='GCNConv',
-                 num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
-        super(SAGPool, self).__init__()
-        self.dataset = dataset
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.graph_sage = graph_sage
-        self.dropout = dropout
-
-        self.convs = torch.nn.ModuleList([
-            Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
-        ])
-
-        self.convs.extend([
-            Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
-            for i in range(num_layers - 1)
-        ])
+class SAGPool(BaseModel):
+    def __init__(self, ratio=0.5, gnn='GCNConv', **kwargs):
+        super(SAGPool, self).__init__(dense=False, **kwargs)
+        self.ratio = ratio
+        self.gnn = getattr(torch_geometric.nn, gnn) if isinstance(gnn, str) else gnn
 
         if isinstance(ratio, list):
-            num_layers = len(ratio) + 1
+            self.num_layers = len(ratio) + 1
             self.ratios = ratio
         else:
-            self.ratios = [ratio for _ in range(1, num_layers)]
+            self.ratios = [ratio for _ in range(1, self.num_layers)]
 
-        self.pools = torch.nn.ModuleList([
-            SAGPooling(hidden, r, GNN=getattr(torch_geometric.nn, gnn)) for r in self.ratios
+        self.pool_blocks = torch.nn.ModuleList([
+            SAGPooling(self.hidden, r, GNN=self.gnn) for r in self.ratios
         ])
-
-        self.jump = JumpingKnowledge(mode='cat')
-        self.bn = BatchNorm1d(num_layers * hidden * 2)
-        self.lin1 = Linear(num_layers * hidden * 2, hidden)
-        self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
-        for conv in self.convs:
-            conv.reset_parameters()
+        super(SAGPool, self).reset_parameters()
 
-        for pool in self.pools:
+        for pool in self.pool_blocks:
             pool.reset_parameters()
-
-        self.jump.reset_parameters()
-        self.bn.reset_parameters()
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
     
-    def collate(self, data_list):
-        return Batch.from_data_list(data_list).to(self.device)
+    def pool(self, data, layer):
+        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer](data.x, data.edge_index, 
+                                                                                            data.edge_attr, data.batch)
 
-    def forward(self, index):
-        data = self.collate(self.dataset[index])
-
-        x, edge_index, edge_attr, batch = data.x, data.edge_index, data.edge_attr, data.batch
-
-        if self.graph_sage:
-            x = F.relu(self.convs[0](x, edge_index))
-        else:
-            x = F.relu(self.convs[0](x, edge_index, edge_attr))
-
-        xs = [global_add_pool(x, batch), global_max_pool(x, batch)]
-
-        for conv, pool in zip(self.convs[1:], self.pools):
-            x, edge_index, edge_attr, batch, _, _ = pool(x, edge_index, edge_attr, batch=batch)
-
-            if self.graph_sage:
-                x = F.relu(conv(x, edge_index))
-            else:
-                x = F.relu(conv(x, edge_index, edge_attr))
-
-            xs.extend([global_add_pool(x, batch), global_max_pool(x, batch)])
-
-        x = self.jump(xs)
-        x = self.bn(x)
-        x = F.relu(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin2(x)
-
-        return F.softmax(x, dim=-1)
-
-    def __repr__(self):
-        return self.__class__.__name__
+        return data
 
 
-class EdgePool(torch.nn.Module):
-    def __init__(self, dataset, num_layers, hidden, dropout=0.3, method='softmax', edge_dropout=0.,
-                 num_inner_layers=2, jumping_knowledge='cat', graph_sage=False):
-        super(EdgePool, self).__init__()
-        self.dataset = dataset
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.graph_sage = graph_sage
-        self.dropout = dropout
+class EdgePool(BaseModel):
+    def __init__(self, method='softmax', edge_dropout=0., **kwargs):
+        super(EdgePool, self).__init__(dense=False, **kwargs)
+        self.method = getattr(EdgePooling, 'compute_edge_score_' + method) if isinstance(method, str) else method
+        self.edge_dropout = edge_dropout
 
-        self.convs = torch.nn.ModuleList([
-            Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
+        self.pool_blocks = torch.nn.ModuleList([
+            EdgePooling(self.hidden, self.method, edge_dropout, 0.) for i in range(1, self.num_layers)
         ])
-
-        self.convs.extend([
-            Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage)
-            for i in range(num_layers - 1)
-        ])
-
-        self.pools = torch.nn.ModuleList([
-            EdgePooling(hidden, getattr(EdgePooling, 'compute_edge_score_' + method), edge_dropout, 0.) for i in range(num_layers - 1)
-        ])
-
-        self.jump = JumpingKnowledge(mode='cat')
-        self.bn = BatchNorm1d(num_layers * hidden * 2)
-        self.lin1 = Linear(num_layers * hidden * 2, hidden)
-        self.lin2 = Linear(hidden, dataset.num_classes)
 
     def reset_parameters(self):
-        for conv in self.convs:
-            conv.reset_parameters()
+        super(EdgePool, self).reset_parameters()
 
-        for pool in self.pools:
+        for pool in self.pool_blocks:
             pool.reset_parameters()
-
-        self.jump.reset_parameters()
-        self.bn.reset_parameters()
-        self.lin1.reset_parameters()
-        self.lin2.reset_parameters()
     
-    def collate(self, data_list):
-        return Batch.from_data_list(data_list).to(self.device)
+    def pool(self, data, layer):
+        data.x, data.edge_index, data.batch, _ = self.pool_blocks[layer](data.x, data.edge_index, data.batch)
 
-    def forward(self, index):
-        data = self.collate(self.dataset[index])
-
-        x, edge_index, batch = data.x, data.edge_index, data.batch
-
-        x = F.relu(self.convs[0](x, edge_index))
-        xs = [global_add_pool(x, batch), global_max_pool(x, batch)]
-
-        for conv, pool in zip(self.convs[1:], self.pools):
-            x, edge_index, batch, _ = pool(x, edge_index, batch)
-            x = F.relu(conv(x, edge_index))
-            xs.extend([global_add_pool(x, batch), global_max_pool(x, batch)])
-
-        x = self.jump(xs)
-        x = self.bn(x)
-        x = F.relu(self.lin1(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lin2(x)
-
-        return F.softmax(x, dim=-1)
-
-    def __repr__(self):
-        return self.__class__.__name__
+        return data

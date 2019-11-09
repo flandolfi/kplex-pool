@@ -1,7 +1,10 @@
+import numpy as np
+from os import path
+
 import torch
 from torch.utils.data.dataloader import default_collate
 
-from torch_geometric.data import Data, Batch, InMemoryDataset, Dataset
+from torch_geometric.data import Data, Batch, InMemoryDataset, Dataset, download_url
 from torch_geometric.transforms import ToDense
 
 
@@ -65,20 +68,20 @@ class DenseDataset(Dataset):
         super(DenseDataset, self).__init__("")
 
         self.data = Batch()
-        max_nodes = max([data.num_nodes for data in data_list])
-        to_dense = ToDense(max_nodes)
+        self.max_nodes = max([data.num_nodes for data in data_list])
+        to_dense = ToDense(self.max_nodes)
         dense_list = [to_dense(data) for data in data_list]
 
         if 'cover_index' in data_list[0]:
-            max_clusters = max([data.num_clusters for data in data_list])    
+            self.max_clusters = max([data.num_clusters for data in data_list])    
 
             for data in dense_list:
-                data.cover_mask = torch.zeros(max_clusters, dtype=torch.uint8)
+                data.cover_mask = torch.zeros(self.max_clusters, dtype=torch.uint8)
                 data.cover_mask[:data.num_clusters] = 1  
                 data.cover_index = torch.sparse_coo_tensor(
                         indices=data.cover_index,
                         values=torch.ones_like(data.cover_index[0]), 
-                        size=torch.Size([max_nodes, max_clusters]),
+                        size=torch.Size([self.max_nodes, self.max_clusters]),
                         dtype=torch.float
                     ).to_dense()
 
@@ -96,19 +99,22 @@ class DenseDataset(Dataset):
 
     def get(self, idx):
         mask = self.data.mask[idx]
-        max_nodes = mask.argmax(-1).max().item() + 1
+        max_nodes = mask.type(torch.uint8).argmax(-1).max().item() + 1
         out = Batch()
 
-        for key, item in self.data('x', 'pos', 'y', 'mask'):
+        for key, item in self.data('x', 'pos', 'mask'):
             out[key] = item[idx, :max_nodes]
 
         out.adj = self.data.adj[idx, :max_nodes, :max_nodes]
         
+        if 'y' in self.data:
+            out.y = self.data.y[idx]
+        
         if 'cover_index' in self.data:
             cover_mask = self.data.cover_mask[idx]
-            max_clusters = cover_mask.argmax(-1).max().item() + 1
+            max_clusters = cover_mask.type(torch.uint8).argmax(-1).max().item() + 1
             out.cover_index = self.data.cover_index[idx, :max_nodes, :max_clusters]
-            out.cover_mask = self.data.cover_mask[idx, :max_clusters]
+            out.cover_mask = cover_mask[:, :max_clusters]
 
         return out
 
@@ -117,3 +123,48 @@ class DenseDataset(Dataset):
 
     def _process(self):
         pass
+
+
+class NDPDataset(InMemoryDataset):
+    base_url = ('http://github.com/FilippoMB/'
+                'Benchmark_dataset_for_graph_classification/'
+                'raw/master/datasets/')
+    
+    def __init__(self, root, split='train', easy=True, small=True, transform=None, pre_transform=None, pre_filter=None):
+        self.file_name = ('easy' if easy else 'hard') + ('_small' if small else '')
+        self.split = split.lower()
+
+        assert self.split in {'train', 'val', 'test'}
+
+        if self.split != 'val':
+            self.split = self.split[:2]
+        
+        super(NDPDataset, self).__init__(root, transform, pre_transform, pre_filter)
+        self.data, self.slices = torch.load(self.processed_paths[0])
+
+    @property
+    def raw_file_names(self):
+        return '{}.npz'.format(self.file_name)
+    
+    @property
+    def processed_file_names(self):
+        return '{}.pt'.format(self.file_name)
+
+    def download(self):
+        download_url('{}{}.npz'.format(self.base_url, self.file_name), self.raw_dir)
+
+    def process(self):
+        npz = np.load(path.join(self.raw_dir, self.raw_file_names), allow_pickle=True)
+        raw_data = (npz['{}_{}'.format(self.split, key)] for key in ['feat', 'adj', 'class']) 
+        data_list = [Data(x=torch.FloatTensor(x), 
+                          edge_index=torch.LongTensor(np.stack(adj.nonzero())), 
+                          y=torch.LongTensor(y.nonzero()[0])) for x, adj, y in zip(*raw_data)]
+
+        if self.pre_filter is not None:
+            data_list = [data for data in data_list if self.pre_filter(data)]
+        
+        if self.pre_transform is not None:
+            data_list = [self.pre_transform(data) for data in data_list]
+
+        self.data, self.slices = self.collate(data_list)
+        torch.save((self.data, self.slices), self.processed_paths[0])

@@ -10,11 +10,13 @@ from torch_geometric.datasets import TUDataset
 
 import skorch
 from skorch import NeuralNetClassifier
-from skorch.dataset import CVSplit
+from skorch.dataset import CVSplit, Dataset
+from skorch.helper import predefined_split
 
 from benchmark import model
 from kplex_pool.utils import add_node_features
 from kplex_pool.kplex import KPlexCover
+from kplex_pool.data import NDPDataset, CustomDataset
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -25,8 +27,8 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--cover_priority', type=str, default='default')
     parser.add_argument('--kplex_priority', type=str, default='default')
-    parser.add_argument('--global_pool_op', type=str, default='add')
-    parser.add_argument('--node_pool_op', type=str, default='add')
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add', 'max'])
+    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
     parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
     parser.add_argument('--epochs', type=int, default=100)
@@ -36,6 +38,8 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--dense', action='store_true')
+    parser.add_argument('--easy', action='store_true')
+    parser.add_argument('--small', action='store_true')
     parser.add_argument('--ratio', type=float, default=0.8)
     parser.add_argument('--split', type=float, default=0.1)
     parser.add_argument('--layers', type=int, default=3)
@@ -54,20 +58,38 @@ if __name__ == "__main__":
     parser.add_argument('--ks', nargs='*', type=int)
     args = parser.parse_args()
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.manual_seed(42)
     np.random.seed(42)
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
-    
-    dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    if dataset.data.x is None:
-        dataset = add_node_features(dataset)
+    if args.dataset == 'NDPDataset':
+        train, val, test = (NDPDataset('data/', 
+                                       split=key, 
+                                       easy=args.easy, 
+                                       small=args.small) 
+                            for key in ['train', 'val', 'test'])
+        
+        train_size = len(train) + len(val)
+        dataset = CustomDataset(list(train) + list(val) + list(test))
 
-    X = np.arange(len(dataset)).reshape((-1, 1))
-    y = dataset.data.y.numpy()
+        X = np.arange(len(dataset)).reshape((-1, 1))
+        y = dataset.data.y.numpy()
+
+        cv_split = predefined_split(Dataset(X[train_size:], y[train_size:]))
+        X, y = X[:train_size], y[:train_size]
+    else:
+        dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
+
+        if dataset.data.x is None:
+            dataset = add_node_features(dataset)
+
+        X = np.arange(len(dataset)).reshape((-1, 1))
+        y = dataset.data.y.numpy()
+
+        cv_split = CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42))
 
     params = {
         'module': getattr(model, args.model), 
@@ -78,6 +100,10 @@ if __name__ == "__main__":
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
+        'module__normalize': args.normalize,
+        'module__readout': args.no_readout,
+        'module__global_pool_op': args.global_pool_op,
+        'module__device':device,
         'max_epochs': args.epochs,
         'batch_size': args.batch_size,
         'lr': args.lr,
@@ -85,7 +111,7 @@ if __name__ == "__main__":
         'optimizer': torch.optim.Adam,
         'optimizer__weight_decay': args.weight_decay,
         'iterator_train__shuffle': True,
-        'train_split': CVSplit(cv=StratifiedShuffleSplit(test_size=args.split, n_splits=1, random_state=42)),
+        'train_split': cv_split,
         'device': device
     }
 
@@ -109,14 +135,13 @@ if __name__ == "__main__":
                                               verbose=True if args.no_cache else False)
         params.update(
             module__cover_fun=cover_fun,
-            module__normalize=args.normalize,
-            module__dense=args.dense,
-            module__readout=args.no_readout,
-            module__global_pool_op=args.global_pool_op,
-            module__node_pool_op=args.node_pool_op
+            module__node_pool_op=args.node_pool_op,
+            module__dense=args.dense
         )
     elif args.model == 'EdgePool':
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
+    elif args.model == 'BaseModel':
+        params.update(module__dense=args.dense)
     else:
         params.update(module__ratio=args.ratio)
 
