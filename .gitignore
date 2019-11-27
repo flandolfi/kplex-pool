@@ -106,7 +106,16 @@ venv.bak/
 # Project files:
 .vscode/*
 .idea/*
-notebooks/*
-reports/*
-data/*
-results/*
+
+# Docs
+notebooks/
+reports/
+
+# Input/Output data
+data/
+results/
+*.pickle
+*.csv
+*.np
+*.npz
+*.pt
