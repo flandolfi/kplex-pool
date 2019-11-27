@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='CoverPool')
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
-    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add', 'max'])
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add'])
     parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
     parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--max_epochs', type=int, default=1000)
