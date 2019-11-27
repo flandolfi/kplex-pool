@@ -150,8 +150,7 @@ if __name__ == "__main__":
         param_grid.update(module__k=2**np.arange(np.log2(args.max_k) + 1).astype(int))
         shared_params.update(
             module__dense=args.dense,
-            module__node_pool_op=args.node_pool_op,
-            module__edge_pool_op=args.edge_pool_op
+            module__node_pool_op=args.node_pool_op
         )
     elif args.model == 'EdgePool':
         param_grid.update({
@@ -206,7 +205,11 @@ if __name__ == "__main__":
                 ks = tuple(ks)
 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, dense=args.dense, q=args.q, simplify=args.simplify)
+                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, 
+                                                             dense=args.dense, 
+                                                             q=args.q, 
+                                                             edge_pool_op=args.edge_pool_op, 
+                                                             simplify=args.simplify)
 
                 params['module__cover_fun'] = cover_fs[ks]
             
