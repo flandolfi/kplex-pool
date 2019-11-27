@@ -41,6 +41,9 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='CoverPool')
     parser.add_argument('--dataset', type=str, default='PROTEINS')
     parser.add_argument('--jumping_knowledge', type=str, default='cat')
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add', 'max'])
+    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
+    parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--max_k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=1.)
@@ -124,6 +127,7 @@ if __name__ == "__main__":
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
         'module__device': device,
+        'module__global_pool_op': args.global_pool_op,
         'batch_size': args.batch_size,
         'criterion': model.PoolLoss if args.model == 'DiffPool' else torch.nn.modules.loss.NLLLoss,
         'optimizer': torch.optim.Adam,
@@ -143,8 +147,12 @@ if __name__ == "__main__":
     if args.model == 'CoverPool':
         cover_fs = dict()
         kplex_cover = KPlexCover()
-        shared_params.update(module__dense=args.dense)
         param_grid.update(module__k=2**np.arange(np.log2(args.max_k) + 1).astype(int))
+        shared_params.update(
+            module__dense=args.dense,
+            module__node_pool_op=args.node_pool_op,
+            module__edge_pool_op=args.edge_pool_op
+        )
     elif args.model == 'EdgePool':
         param_grid.update({
             'module__method': ['softmax', 'tanh'],
@@ -231,8 +239,8 @@ if __name__ == "__main__":
             train_split=predefined_split(valid_ds), 
             max_epochs=args.max_epochs,
             callbacks=[
-                ('early_stopping', EarlyStopping),
-                ('test_acc', EpochScoring)
+                ('test_acc', EpochScoring),
+                ('early_stopping', EarlyStopping)
             ],
             callbacks__early_stopping__patience=args.patience,
             callbacks__early_stopping__sink=skf_pbar.write,
