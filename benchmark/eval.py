@@ -6,6 +6,7 @@ from itertools import product
 
 import torch
 
+import torch_geometric
 from torch_geometric.datasets import TUDataset
 
 import skorch
@@ -19,6 +20,13 @@ from kplex_pool.kplex import KPlexCover
 from kplex_pool.data import NDPDataset, CustomDataset
 
 from sklearn.model_selection import StratifiedShuffleSplit
+
+from .add_pool import add_pool, add_pool_x
+
+
+
+torch_geometric.nn.add_pool = add_pool
+torch_geometric.nn.add_pool_x = add_pool_x
 
 
 if __name__ == "__main__":
@@ -142,6 +150,8 @@ if __name__ == "__main__":
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
     elif args.model == 'BaseModel':
         params.update(module__dense=args.dense)
+    elif args.model == 'Graclus':
+        params.update(module__node_pool_op=args.node_pool_op)
     else:
         params.update(module__ratio=args.ratio)
 

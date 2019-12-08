@@ -6,6 +6,7 @@ from itertools import product
 
 import torch
 
+import torch_geometric
 from torch_geometric.datasets import TUDataset
 
 import skorch
@@ -23,6 +24,12 @@ from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, Par
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
+from .add_pool import add_pool, add_pool_x
+
+
+
+torch_geometric.nn.add_pool = add_pool
+torch_geometric.nn.add_pool_x = add_pool_x
 
 
 class TestScoring:
@@ -159,6 +166,8 @@ if __name__ == "__main__":
         })
     elif args.model == 'BaseModel':
         shared_params.update(module__dense=args.dense)
+    elif args.model == 'Graclus':
+        shared_params.update(module__node_pool_op=args.node_pool_op)
     else:
         param_grid.update({
             'module__ratio': [0.25, 0.5, 0.75]

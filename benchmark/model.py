@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.nn import Linear, BatchNorm1d, ModuleList
 from torch.utils.data.dataloader import default_collate
 
+import torch_sparse
 import torch_geometric
 from torch_geometric.transforms import ToDense
 from torch_geometric.data import Batch, Data, Dataset
@@ -21,7 +22,8 @@ from torch_geometric.nn import (
     dense_diff_pool, 
     global_max_pool, 
     global_add_pool, 
-    global_mean_pool
+    global_mean_pool,
+    graclus
 )
 
 from kplex_pool import KPlexCover, cover_pool_node, cover_pool_edge, simplify
@@ -382,5 +384,26 @@ class EdgePool(BaseModel):
     
     def pool(self, data, layer):
         data.x, data.edge_index, data.batch, _ = self.pool_blocks[layer](data.x, data.edge_index, data.batch)
+
+        return data
+
+
+class Graclus(BaseModel):
+    def __init__(self, node_pool_op='add', **kwargs):
+        super(Graclus, self).__init__(dense=False, **kwargs)
+        ops = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
+        self.node_pool_op = [getattr(torch_geometric.nn, f'{op}_pool_x' if i else f'{op}_pool') for i, op in enumerate(ops)]
+    
+    def pool(self, data, layer):
+        cluster = graclus(data.edge_index, data.edge_attr, data.num_nodes)
+        data = self.node_pool_op[0](cluster, data)
+
+        if len(self.node_pool_op) > 0:
+            xs = [data.x]
+
+            for op in self.node_pool_op[1:]:
+                xs.append(op(cluster, data.x, data.batch))
+
+            data.x = torch.cat(xs, dim=-1)
 
         return data
