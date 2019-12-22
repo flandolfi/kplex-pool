@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
     parser.add_argument('--edge_pool_op', type=str, default='add')
     parser.add_argument('--max_epochs', type=int, default=1000)
+    parser.add_argument('--min_k', type=int, default=1)
     parser.add_argument('--max_k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=1.)
     parser.add_argument('--q', type=float, default=None)
@@ -59,10 +60,13 @@ if __name__ == "__main__":
     parser.add_argument('--dense', action='store_true')
     parser.add_argument('--easy', action='store_true')
     parser.add_argument('--small', action='store_true')
+    parser.add_argument('--only_gcn', action='store_true')
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=-1)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--folds', type=int, default=10)
+    parser.add_argument('--hidden', type=int, default=None)
+    parser.add_argument('--min_layers', type=int, default=2)
     parser.add_argument('--max_layers', type=int, default=3)
     parser.add_argument('--inner_layers', type=int, default=2)
     parser.add_argument('--to_pickle', type=str, default='cv_results.pickle')
@@ -146,15 +150,15 @@ if __name__ == "__main__":
 
     param_grid = {
         'optimizer__lr': [1e-3, 5e-4, 2e-4, 1e-4],
-        'module__graph_sage': [True, False],
-        'module__hidden': [64, 128],
-        'module__num_layers': list(range(2, args.max_layers + 1))
+        'module__graph_sage': [False] if args.only_gcn else [True, False],
+        'module__hidden': [64, 128] if args.hidden is None else [args.hidden],
+        'module__num_layers': list(range(args.min_layers, args.max_layers + 1))
     }
 
     if args.model == 'CoverPool':
         cover_fs = dict()
         kplex_cover = KPlexCover()
-        param_grid.update(module__k=2**np.arange(np.log2(args.max_k) + 1).astype(int))
+        param_grid.update(module__k=2**np.arange(np.log2(args.min_k), np.log2(args.max_k) + 1).astype(int))
         shared_params.update(
             module__dense=args.dense,
             module__node_pool_op=args.node_pool_op
