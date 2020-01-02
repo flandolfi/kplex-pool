@@ -46,6 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--simplify', action='store_true')
     parser.add_argument('--dense', action='store_true')
+    parser.add_argument('--dense_from', type=int, default=0)
     parser.add_argument('--easy', action='store_true')
     parser.add_argument('--small', action='store_true')
     parser.add_argument('--ratio', type=float, default=0.8)
@@ -136,7 +137,7 @@ if __name__ == "__main__":
 
         kplex_cover = KPlexCover(args.cover_priority, args.kplex_priority, args.skip_covered)
         cover_fun = kplex_cover.get_cover_fun(ks, dataset if args.no_cache else None, 
-                                              dense=args.dense,
+                                              dense=args.dense_from if args.dense else False,
                                               q=args.q,
                                               simplify=args.simplify,
                                               edge_pool_op=args.edge_pool_op,
@@ -144,12 +145,12 @@ if __name__ == "__main__":
         params.update(
             module__cover_fun=cover_fun,
             module__node_pool_op=args.node_pool_op,
-            module__dense=args.dense
+            module__dense=args.dense_from if args.dense else False
         )
     elif args.model == 'EdgePool':
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
     elif args.model == 'BaseModel':
-        params.update(module__dense=args.dense)
+        params.update(module__dense=args.dense_from if args.dense else False)
     elif args.model == 'Graclus':
         params.update(module__node_pool_op=args.node_pool_op)
     else:

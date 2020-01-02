@@ -8,6 +8,7 @@ from torch.utils.data.dataloader import default_collate
 
 import torch_sparse
 import torch_geometric
+from torch_geometric.utils import to_dense_batch, to_dense_adj
 from torch_geometric.transforms import ToDense
 from torch_geometric.data import Batch, Data, Dataset
 from torch_geometric.nn import (
@@ -117,41 +118,40 @@ class BaseModel(torch.nn.Module):
         self.jumping_knowledge = jumping_knowledge
         self.normalize = normalize
         self.graph_sage = graph_sage
-        self.dense = dense
+        self.dense = int(not dense)*num_layers if isinstance(dense, bool) else dense
         self.readout = readout
-        self.dataset = DenseDataset(dataset) if dense else dataset
+        self.dataset = DenseDataset(dataset) if self.dense == 0 else dataset
         self.dropout = dropout
 
         gps = global_pool_op if isinstance(global_pool_op, list) else [global_pool_op]
         
-        if dense:
-            self.global_pool_op = []
+        self.dense_global_pool_op = []
 
-            for op in gps:
-                if callable(op):
-                    self.global_pool_op.append(op)
-                elif op == 'add':
-                    self.global_pool_op.append(lambda x, _1, _2: torch.sum(x, dim=1))
-                elif op == 'max' or op == 'min':
-                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1)[0])
-                else:
-                    self.global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1))
-        else:
-            self.global_pool_op = [getattr(torch_geometric.nn, f'global_{op}_pool') for op in gps]
+        for op in gps:
+            if callable(op):
+                self.dense_global_pool_op.append(op)
+            elif op == 'add':
+                self.dense_global_pool_op.append(lambda x, _1, _2: torch.sum(x, dim=1))
+            elif op == 'max' or op == 'min':
+                self.dense_global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1)[0])
+            else:
+                self.dense_global_pool_op.append(lambda x, _1, _2: getattr(torch, op)(x, dim=1))
 
-        self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense)
+        self.sparse_global_pool_op = [getattr(torch_geometric.nn, f'global_{op}_pool') for op in gps]
+
+        self.conv_in = Block(dataset.num_features, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, self.dense == 0)
         self.blocks = torch.nn.ModuleList()
         
-        for _ in range(num_layers - 1):
-            self.blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, dense))
+        for l in range(1, num_layers):
+            self.blocks.append(Block(hidden, hidden, hidden, num_inner_layers, jumping_knowledge, graph_sage, self.dense <= l))
 
         out_dim = len(gps) * num_layers * hidden if readout else len(gps) * hidden
         self.bn = BatchNorm1d(out_dim)
         self.lin1 = Linear(out_dim, hidden)
         self.lin2 = Linear(hidden, dataset.num_classes)
     
-    def collate(self, index):
-        if self.dense:
+    def collate(self, index, layer=0):
+        if layer >= self.dense:
             return self.dataset[index.view(-1)].to(self.device)
         
         return Batch.from_data_list(self.dataset[index.view(-1)]).to(self.device)
@@ -166,8 +166,18 @@ class BaseModel(torch.nn.Module):
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
     
-    def global_pool(self, x, batch, batch_size):
-        return [op(x, batch, batch_size) for op in self.global_pool_op]
+    def global_pool(self, x, batch, batch_size, layer):
+        if layer >= self.dense:
+            return [op(x, batch, batch_size) for op in self.dense_global_pool_op]
+
+        return [op(x, batch, batch_size) for op in self.sparse_global_pool_op]
+    
+    def densify(self, data):
+        data.x, data.mask = to_dense_batch(data.x, data.batch)
+        data.adj = to_dense_adj(data.edge_index, data.batch, data.edge_attr)
+        data.edge_index, data.edge_attr, data.batch = None, None, None
+
+        return data
 
     def pool(self, data, layer):
         return data
@@ -177,16 +187,19 @@ class BaseModel(torch.nn.Module):
         batch_size = len(index)
 
         data.x = self.conv_in(data)
-        xs = self.global_pool(data.x, data.batch, batch_size)
+        xs = self.global_pool(data.x, data.batch, batch_size, 0)
 
-        for layer, block in enumerate(self.blocks):  
+        for layer, block in enumerate(self.blocks, 1):  
             data = self.pool(data, layer)
+
+            if layer == self.dense:
+                data = self.densify(data)
 
             if self.normalize:
                 data.x = F.normalize(data.x)
-
+            
             data.x = block(data)
-            xs.extend(self.global_pool(data.x, data.batch, batch_size))
+            xs.extend(self.global_pool(data.x, data.batch, batch_size, layer))
         
         if not self.readout:
             xs = xs[-2:]
@@ -220,24 +233,34 @@ class CoverPool(BaseModel):
 
     def collate(self, index):
         self.hierarchy = self.cover_fun(self.dataset, index.view(-1).to(self.device))
+        hierarchy = []
+
+        for layer, data in enumerate(self.hierarchy):
+            if layer >= self.dense:
+                hierarchy.append(data.to(self.device))
+            else:
+                hierarchy.append(Batch.from_data_list(data).to(self.device))
         
-        if self.dense:
-            self.hierarchy = [data.to(self.device) for data in self.hierarchy]
-        else:
-            self.hierarchy = [Batch.from_data_list(data).to(self.device) for data in self.hierarchy]
+        self.hierarchy = hierarchy
 
         return self.hierarchy[0]
 
     def pool(self, data, layer):
-        cover = self.hierarchy[layer + 1]
+        cover = self.hierarchy[layer]
+        dense = layer > self.dense
         xs = []
 
         for op in self.node_pool_op:
-            xs.append(cover_pool_node(data.cover_index, data.x, cover.num_nodes, op, self.dense, data.cover_mask if self.dense else None))
+            xs.append(cover_pool_node(data.cover_index, data.x, cover.num_nodes, op, dense, data.cover_mask if dense else None))
         
         cover.x = torch.cat(xs, dim=-1)
 
         return cover
+
+    def densify(self, data):
+        data.x, data.mask = to_dense_batch(data.x, data.mask.nonzero()[:, 0])
+
+        return data
 
 # Other models used for comparison, slightly modified from
 # https://github.com/rusty1s/pytorch_geometric/tree/master/benchmark/kernel
@@ -336,6 +359,7 @@ class TopKPool(BaseModel):
                                                                                             data.edge_attr, data.batch)
 
         return data
+
 
 class SAGPool(BaseModel):
     def __init__(self, ratio=0.5, gnn='GCNConv', **kwargs):
