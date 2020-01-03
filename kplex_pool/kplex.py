@@ -130,13 +130,12 @@ class KPlexCover:
         return output
 
     def get_cover_fun(self, ks, dataset=None, dense=False, *args, **kwargs):
+        dense = int(not dense)*(len(ks) + 1) if isinstance(dense, bool) else dense
+
         def cover_fun(ds, idx):
             hierarchy = self.get_representations(ds[idx], ks, *args, **kwargs)
-
-            if dense:
-                return [DenseDataset(ds) for ds in hierarchy]
             
-            return hierarchy
+            return [DenseDataset(ds) if l >= dense else ds for l, ds in enumerate(hierarchy)]
 
         if dataset is None:
             return cover_fun
