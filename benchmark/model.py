@@ -87,7 +87,7 @@ class Block(torch.nn.Module):
         if self.mode:
             x = F.relu(self.lin(self.jump(xs)))
 
-            if self.dense:
+            if self.dense and data.mask is not None:
                 x = x * data.mask.unsqueeze(-1).type(x.dtype)
         
         return x
@@ -299,12 +299,12 @@ class DiffPool(BaseModel):
     
     def pool(self, data, layer):
         data.x, data.old_x = data.old_x, data.x
-        s = self.pool_blocks[layer](data)
+        s = self.pool_blocks[layer - 1](data)
         data.x, data.adj, link_loss, ent_loss = dense_diff_pool(data.old_x, data.adj, s, data.mask)
         data.old_x = data.x
-        data.mask = torch.ones(data.x.size()[:-1], dtype=torch.uint8, device=self.device)
+        data.mask = None # torch.ones(data.x.size()[:-1], dtype=torch.uint8, device=self.device)
 
-        if layer == 0:
+        if layer == 1:
             self.link_loss = link_loss
             self.ent_loss = ent_loss
         else:
@@ -355,8 +355,8 @@ class TopKPool(BaseModel):
             pool.reset_parameters()
     
     def pool(self, data, layer):
-        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer](data.x, data.edge_index, 
-                                                                                            data.edge_attr, data.batch)
+        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer - 1](data.x, data.edge_index, 
+                                                                                                data.edge_attr, data.batch)
 
         return data
 
@@ -384,8 +384,8 @@ class SAGPool(BaseModel):
             pool.reset_parameters()
     
     def pool(self, data, layer):
-        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer](data.x, data.edge_index, 
-                                                                                            data.edge_attr, data.batch)
+        data.x, data.edge_index, data.edge_attr, data.batch, _, _ = self.pool_blocks[layer - 1](data.x, data.edge_index, 
+                                                                                                data.edge_attr, data.batch)
 
         return data
 
@@ -407,7 +407,7 @@ class EdgePool(BaseModel):
             pool.reset_parameters()
     
     def pool(self, data, layer):
-        data.x, data.edge_index, data.batch, _ = self.pool_blocks[layer](data.x, data.edge_index, data.batch)
+        data.x, data.edge_index, data.batch, _ = self.pool_blocks[layer - 1](data.x, data.edge_index, data.batch)
 
         return data
 
