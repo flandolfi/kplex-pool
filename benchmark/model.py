@@ -302,7 +302,7 @@ class DiffPool(BaseModel):
         s = self.pool_blocks[layer - 1](data)
         data.x, data.adj, link_loss, ent_loss = dense_diff_pool(data.old_x, data.adj, s, data.mask)
         data.old_x = data.x
-        data.mask = None # torch.ones(data.x.size()[:-1], dtype=torch.uint8, device=self.device)
+        data.mask = None
 
         if layer == 1:
             self.link_loss = link_loss
