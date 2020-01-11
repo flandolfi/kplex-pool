@@ -201,6 +201,7 @@ if __name__ == "__main__":
 
         gs_pbar = tqdm(list(ParameterGrid(param_grid)), leave=True, desc='Grid Search')
         test_scoring = TestScoring(test_ds)
+        drop_last = (args.batch_size != -1) and (len(train_X) % args.batch_size == 1)
 
         best_acc = 0.
         best_params = None
@@ -233,6 +234,7 @@ if __name__ == "__main__":
                 callbacks=[('early_stopping', EarlyStopping)],
                 callbacks__early_stopping__patience=args.patience,
                 callbacks__early_stopping__sink=skf_pbar.write,
+                iterator_train__drop_last=drop_last,
                 **shared_params,
                 **params
             ).fit(train_X, train_y)
@@ -265,6 +267,7 @@ if __name__ == "__main__":
             callbacks__test_acc__use_caching=False,
             callbacks__test_acc__lower_is_better=False,
             callbacks__test_acc__name='test_acc',
+            iterator_train__drop_last=drop_last,
             **shared_params,
             **best_params
         ).fit(train_X, train_y)
