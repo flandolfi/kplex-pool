@@ -275,7 +275,7 @@ if __name__ == "__main__":
         df = pd.DataFrame(net.history).drop('batches', 1)
         test_acc.append(df[df.valid_acc_best].test_acc.iloc[-1])
 
-        df = pd.concat([df, pd.DataFrame([params for _ in df.iterrows()])], axis=1)
+        df = pd.concat([df, pd.DataFrame([best_params for _ in df.iterrows()])], axis=1)
         df['cv_type'] = 'outer'
         df['fold'] = out_iter
 
