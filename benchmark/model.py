@@ -101,7 +101,6 @@ class BaseModel(torch.nn.Module):
                  readout=True, 
                  graph_sage=False,
                  dense=False, 
-                 normalize=False, 
                  jumping_knowledge='cat',
                  global_pool_op='add',
                  device=None):
@@ -116,7 +115,6 @@ class BaseModel(torch.nn.Module):
         self.num_layers = num_layers
         self.num_inner_layers = num_inner_layers
         self.jumping_knowledge = jumping_knowledge
-        self.normalize = normalize
         self.graph_sage = graph_sage
         self.dense = int(not dense)*num_layers if isinstance(dense, bool) else dense
         self.readout = readout
@@ -194,9 +192,6 @@ class BaseModel(torch.nn.Module):
 
             if layer == self.dense:
                 data = self.densify(data)
-
-            if self.normalize:
-                data.x = F.normalize(data.x)
             
             data.x = block(data)
             xs.extend(self.global_pool(data.x, data.batch, batch_size, layer))

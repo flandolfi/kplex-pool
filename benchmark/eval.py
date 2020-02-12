@@ -60,7 +60,6 @@ if __name__ == "__main__":
     parser.add_argument('--k', type=int, default=8)
     parser.add_argument('--k_step_factor', type=float, default=0.5)
     parser.add_argument('--graph_sage', action='store_true')
-    parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--skip_covered', action='store_true')
     parser.add_argument('--no_readout', action='store_false')
     parser.add_argument('--no_cache', action='store_false')
@@ -109,7 +108,6 @@ if __name__ == "__main__":
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
         'module__jumping_knowledge': args.jumping_knowledge,
-        'module__normalize': args.normalize,
         'module__readout': args.no_readout,
         'module__global_pool_op': args.global_pool_op,
         'module__device':device,
