@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DS=$1
-ARGS="--dense --only_gcn --hidden=64 --batch_size=1000 --dataset=${DS}"
+ARGS="--dense --only_gcn --hidden=64 --batch_size=1000 --min_layers=2 --max_layers=2 --dataset=${DS}"
 DIR=./results/ablation_study/${DS}/
 
 mkdir -p $DIR
