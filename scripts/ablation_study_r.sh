@@ -6,9 +6,9 @@ DIR=./results/ablation_study/${DS}/
 
 mkdir -p $DIR
 
-FS=(8.0 4.0 2.0)
+FS=(1.000 0.500 0.250 0.125)
 
-for K in 1 2 4; do
+for K in 8 4 2 1; do
     for F in ${FS[@]}; do
         python -m benchmark.cv $ARGS --min_k=$K --max_k=$K --k_step_factor=$F --to_pickle=${DIR}/K${K}_F${F}.pickle
     done
