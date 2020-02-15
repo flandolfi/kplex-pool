@@ -9,6 +9,27 @@ from kplex_pool import pool_edges_cpu
 
 
 def cover_pool_node(cover_index, x, num_clusters=None, pool='add', dense=False, cover_mask=None):
+    """Aggregate the node features within the same k-plex, for every k-plex in
+    a given cover.
+    
+    Args:
+        cover_index (LongTensor): Cover assignment matrix, in sparse 
+            coordinate form. It can assign nodes of different graphs in a
+            batch.
+        x (FloatTensor): Feature matrix of the nodes in the graph(s).
+        num_clusters (int, optional): Number of total k-plexes. Defaults to 
+            `None`.
+        pool (str, optional): Aggregation function (`"add"`, `"mean"`, `"min"`
+            or `"max"`). Defaults to `"add"`.
+        dense (bool, optional): If `True`, compute the aggregation in dense
+            graph form. Defaults to `False`.
+        cover_mask (ByteTensor, optional): Boolean tensor representing the
+            columns of the cover assignment matrix that contain significant
+            data. Can be used only if `dense` is `True`. Defaults to `None`.
+    
+    Returns:
+        FloatTensor: The feature matrix of the coarsened graph.
+    """
     if dense:
         out = x.unsqueeze(0) if x.dim() == 2 else x
         s = cover_index.unsqueeze(0) if cover_index.dim() == 2 else cover_index
@@ -51,6 +72,29 @@ def cover_pool_node(cover_index, x, num_clusters=None, pool='add', dense=False, 
     return out
 
 def cover_pool_edge(cover_index, edge_index, edge_values=None, num_nodes=None, num_clusters=None, pool="add"):
+    """For every two k-plexes in a given cover, aggregate the weights of all
+    the edges having its endvertices on both of them.
+    
+    Args:
+        cover_index (LongTensor): Cover assignment matrix, in sparse 
+            coordinate form. It can assign nodes of different graphs in a
+            batch.
+        edge_index (LongTensor): Edge coordinate matrix.
+        edge_values (FloatTensor, optional): Weights of the edges. If `None`,
+            defaults to a vector of ones. Defaults to `None`.
+        num_nodes (int, optional): Number of total nodes. Defaults to None.
+        num_clusters (int, optional): Number of total k-plexes. Defaults to 
+            `None`.
+        pool (str, optional): Edge agregation function (`"add"`, `"mul"`, 
+            `"mean"`, `"min"` or `"max"`). Defaults to "add".
+    
+    Raises:
+        ValueError: If provided an undefined aggregation function.
+    
+    Returns:
+        (LongTensor, FloatTensor): Sparse coordinate representation of the
+            coarsened graphs.
+    """
     pool_op = getattr(pool_edges_cpu.PoolOp, pool, None)
     device = cover_index.device
 
