@@ -34,8 +34,24 @@ from kplex_pool.data import CustomDataset, DenseDataset
 
 
 class Block(torch.nn.Module):
+    """Convolutional Block.
+        
+    Args:
+        in_channels (int): Number of input channels.
+        hidden_channels (int): Number of hidden channels (i.e., the number of
+            channel of each layer that is not the input nor the output one).
+        out_channels (int): Number of output channels.
+        num_layers (int, optional): Number of layers. Defaults to 2.
+        mode (str, optional): The aggregation scheme to use (`"cat"`, `"max"`
+            or `"lstm"`). Defaults to `"cat"`.
+        graph_sage (bool, optional): Whether to use SAGEConv (`True`) as 
+            convolutional module or not (`False`). Defaults to `False`.
+        dense (bool, optional): If `True`, the input will be processed in
+            dense form. Defaults to `False`.
+    """
+
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, 
-                 mode='cat', graph_sage=False, dense=False):
+                 mode="cat", graph_sage=False, dense=False):
         super(Block, self).__init__()
 
         if dense:
@@ -94,6 +110,39 @@ class Block(torch.nn.Module):
 
 
 class BaseModel(torch.nn.Module):
+    """Baseline Model.
+
+    This model does not perform pooling after the convolutional blocks.
+    
+    Args:
+        dataset (torch_geometric.Dataset): A Graph Dataset.
+        hidden (int): Number of channels, the same for every convolutional 
+            block.
+        num_layers (int, optional): Number of convolutional blocks. Defaults
+            to 3.
+        num_inner_layers (int, optional): Number of layers for each 
+            convolutional block. Defaults to 2.
+        dropout (float, optional): Dropout probability. Defaults to 0.3.
+        readout (bool, optional): If `True`, the final dense block will use as
+            input the concatenation of the global pooled features of each 
+            convolutional layer, otherwise only the ones of the last block. 
+            Defaults to True.
+        graph_sage (bool, optional): Whether to use SAGEConv (`True`) as 
+            convolutional module or not (`False`) within every convolutional 
+            block. Defaults to False.
+        dense (bool, optional): If `True`, the input will be processed in
+            dense form. Defaults to `False`.
+        jumping_knowledge (str, optional):  The aggregation scheme to use 
+            (`"cat"`, `"max"` or `"lstm"`). Defaults to `"cat"`.
+        global_pool_op (str, callable or list, optional): Global aggregation 
+            function(s). Can be a string (`"add"`, `"mean"` or `"max"`), a 
+            `callable`, or a list of the previous. In the latter case, the 
+            resulting pooling will be the concatenation of all the provided 
+            functions. Defaults to "add".
+        device (str or None, optional): Device on which execute the 
+            computation. If `None`, defaults to `"cuda"` if available, else 
+            `"cpu"`. Defaults to `None`.
+        """
     def __init__(self, dataset, hidden,
                  num_layers=3, 
                  num_inner_layers=2, 
@@ -101,8 +150,8 @@ class BaseModel(torch.nn.Module):
                  readout=True, 
                  graph_sage=False,
                  dense=False, 
-                 jumping_knowledge='cat',
-                 global_pool_op='add',
+                 jumping_knowledge="cat",
+                 global_pool_op="add",
                  device=None):
         super(BaseModel, self).__init__()
 
@@ -212,6 +261,25 @@ class BaseModel(torch.nn.Module):
 
 
 class CoverPool(BaseModel):
+    """CoverPool Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    computes the cover of the input graphs and aggregates the nodes within the
+    same sets in the cover. For more details, see Section 3.1 of "K-plex Cover
+    Pooling for Graph Neural Networks", Anonymous author.
+        
+    Args:
+        cover_fun (callable): A cover function. It must take as input a 
+            `torch_geometric.Dataset` and an index tensor
+            (`torch.LongTensor`), and return a hierarchy of graphs in the form
+            of list of `torch_geometric.Dataset`, of length equal to the 
+            number of convolutional blocks minus 1. 
+        node_pool_op (str, callable or list, optional): Local aggregation 
+            function(s). Can be a string (`"add"`, `"mean"` or `"max"`), a 
+            `callable`, or a list of the previous. In the latter case, the 
+            resulting pooling will be the concatenation of all the provided 
+            functions. Defaults to "add".
+    """
     def __init__(self, cover_fun, node_pool_op='add', **kwargs):
         super(CoverPool, self).__init__(**kwargs)
 
@@ -261,6 +329,16 @@ class CoverPool(BaseModel):
 # https://github.com/rusty1s/pytorch_geometric/tree/master/benchmark/kernel
 
 class DiffPool(BaseModel):
+    """DiffPool Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    performs pooling using DiffPool (`torch_geometric.nn.dense_diff_pool`).
+        
+    Args:
+        ratio (float, optional): The ratio of nodes in the coarsened graphs 
+            with respect to to the maximum number of nodes in the dataset.
+            Defaults to 0.25.
+    """
     def __init__(self, ratio=0.25, **kwargs):
         super(DiffPool, self).__init__(dense=True, **kwargs)
 
@@ -313,6 +391,18 @@ class DiffPool(BaseModel):
 
 
 class PoolLoss(torch.nn.Module):
+    """DiffPool Loss.
+
+    Computes the llink and hentropy losses as described by Ying et al. in
+        "Hierarchical Graph Representation Learning with Differentiable
+        Pooling".
+        
+    Args:
+        link_weight (float, optional): Weight applied to the link loss.
+            Defaults to 1.
+        ent_weight (float, optional): Weight applied to the entropy loss.
+            Defaults to 1.
+    """
     def __init__(self, link_weight=1., ent_weight=1., *args, **kwargs):
         super(PoolLoss, self).__init__()
         self.loss = torch.nn.modules.loss.NLLLoss(*args, **kwargs)
@@ -329,6 +419,16 @@ class PoolLoss(torch.nn.Module):
 
 
 class TopKPool(BaseModel):
+    """TopKPool/gPool Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    performs pooling using gPool (`torch_geometric.nn.TopKPooling`).
+        
+    Args:
+        ratio (float, optional): The ratio of nodes in the coarsened graphs 
+            with respect to to the number of nodes in the input graph.
+            Defaults to 0.8.
+    """
     def __init__(self, ratio=0.8, **kwargs):
         super(TopKPool, self).__init__(dense=False, **kwargs)
         self.ratio = ratio
@@ -357,6 +457,19 @@ class TopKPool(BaseModel):
 
 
 class SAGPool(BaseModel):
+    """SAGPool Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    performs pooling using SAGPool (`torch_geometric.nn.SAGPooling`).
+        
+    Args:
+        ratio (float, optional): The ratio of nodes in the coarsened graphs 
+            with respect to to the number of nodes in the input graph.
+            Defaults to 0.5.
+        gnn (str or torch.nn.Module, optional): Convolutional model to be used
+            within the pooling method. It can be a `torch_geometric.nn` module
+            or a name denoting the class. Defaults to `"GCNConv"`.
+    """
     def __init__(self, ratio=0.5, gnn='GCNConv', **kwargs):
         super(SAGPool, self).__init__(dense=False, **kwargs)
         self.ratio = ratio
@@ -386,6 +499,19 @@ class SAGPool(BaseModel):
 
 
 class EdgePool(BaseModel):
+    """EdgePool Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    performs pooling using EdgePool (`torch_geometric.nn.EdgePooling`).
+        
+    Args:
+        method (str or callable, optional): The function to apply to compute
+            the edge score from raw edge scores. It can be a `str` 
+            (`"sigmoid"`, `"tanh"`, `"softmax"`) or a method provided by 
+            `EdgePooling`. Defaults to `"softmax"`.
+        edge_dropout (float, optional): The probability with which to drop 
+            edge scores during training. Defaults to 0. 
+    """
     def __init__(self, method='softmax', edge_dropout=0., **kwargs):
         super(EdgePool, self).__init__(dense=False, **kwargs)
         self.method = getattr(EdgePooling, 'compute_edge_score_' + method) if isinstance(method, str) else method
@@ -408,6 +534,18 @@ class EdgePool(BaseModel):
 
 
 class Graclus(BaseModel):
+    """Graclus Model.
+
+    Extends the `BaseModel` class. After every convolutional block, this model
+    performs pooling using Graclus (`torch_geometric.nn.graclus`).
+        
+    Args:    
+        node_pool_op (str, callable or list, optional): Local aggregation 
+            function(s). Can be a string (`"add"`, `"avg"` or `"max"`), a 
+            `callable`, or a list of the previous. In the latter case, the 
+            resulting pooling will be the concatenation of all the provided 
+            functions. Defaults to "add".
+    """
     def __init__(self, node_pool_op='add', **kwargs):
         super(Graclus, self).__init__(dense=False, **kwargs)
         ops = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
