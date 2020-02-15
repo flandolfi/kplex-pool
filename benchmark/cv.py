@@ -44,34 +44,97 @@ class TestScoring:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='CoverPool')
-    parser.add_argument('--dataset', type=str, default='PROTEINS')
-    parser.add_argument('--jumping_knowledge', type=str, default='cat')
-    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add'])
-    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
-    parser.add_argument('--edge_pool_op', type=str, default='add')
-    parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--min_k', type=int, default=1)
-    parser.add_argument('--max_k', type=int, default=8)
-    parser.add_argument('--k_step_factor', type=float, default=1.)
-    parser.add_argument('--q', type=float, default=None)
-    parser.add_argument('--simplify', action='store_true')
-    parser.add_argument('--dense', action='store_true')
-    parser.add_argument('--dense_from', type=int, default=0)
-    parser.add_argument('--easy', action='store_true')
-    parser.add_argument('--small', action='store_true')
-    parser.add_argument('--only_gcn', action='store_true')
-    parser.add_argument('--patience', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=-1)
-    parser.add_argument('--dropout', type=float, default=0.3)
-    parser.add_argument('--folds', type=int, default=10)
-    parser.add_argument('--hidden', type=int, default=None)
-    parser.add_argument('--min_layers', type=int, default=2)
-    parser.add_argument('--max_layers', type=int, default=3)
-    parser.add_argument('--inner_layers', type=int, default=2)
-    parser.add_argument('--to_pickle', type=str, default='cv_results.pickle')
-    parser.add_argument('--from_pickle', type=str, default=None)
+    parser = argparse.ArgumentParser(description="Cross-validate a given model.")
+    parser.add_argument('-m', '--model', type=str, default='CoverPool',
+                        help="Model to cross-validate (default: %(default)s).",
+                        choices=['BaseModel', 'CoverPool', 'DiffPool', 'TopKPool',
+                                 'SAGPool', 'EdgePool', 'Graclus'])
+    parser.add_argument('-d', '--dataset', type=str, default='PROTEINS', metavar='DS',
+                        help="Dataset on which the cross-validation is performed."
+                             " Must be a dataset from the TU Dortmund collection"
+                             " or NPDDataset (default: %(default)s).")
+    parser.add_argument('--jumping_knowledge', type=str, default='cat',
+                        help="Jumping knowledge aggregation type (default:"
+                             " %(default)s).", 
+                        choices=['cat', 'lstm', ''])
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add'], metavar='POOL',
+                        help="Global aggregation function(s) (default:"
+                             " %(default)s).")
+    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'], metavar='POOL',
+                        help="Local aggregation functions(s) (default:"
+                             " %(default)s).")
+    parser.add_argument('--edge_pool_op', type=str, default='add',
+                        help="Edge weight aggregation function (default:"
+                             " %(default)s)",
+                        choices=['add', 'max', 'min', 'mean'])
+    parser.add_argument('--max_epochs', type=int, default=1000, metavar='E',
+                        help="Number of maximum epochs per training (default:"
+                             " %(default)s).")
+    parser.add_argument('--min_k', type=int, default=1, metavar='K',
+                        help="Left bound of the log-scale (base 2) k-parameter"
+                             " space. Only applicable to CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('--max_k', type=int, default=8, metavar='K',
+                        help="Right bound of the log-scale (base 2) k-parameter"
+                             " space. Only applicable to CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('-r', '--k_step_factor', type=float, default=1., metavar='R',
+                        help="Reduction factor of the k parameter. Only applicable"
+                             " to CoverPool (default: %(default)s).")
+    parser.add_argument('-q', '--q', type=float, default=None,
+                        help="Hub-promotion quantile threshold (must be a float"
+                             " in [0, 1]). Only applicable to CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('--simplify', action='store_true',
+                        help="Apply simplification to coarsened grpahs."
+                             " Only applicable to CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('--dense', action='store_true',
+                        help="Use the dense form computation (default:"
+                             " %(default)s).")
+    parser.add_argument('--dense_from', type=int, default=0, metavar='L',
+                        help="Use the dense form starting from the given layer,"
+                             " and use the sparse form for the other layers."
+                             " Only applicable to BaseModel and CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('--easy', action='store_true',
+                        help="Easy dataset. Only applicable to NPDDataset (default:"
+                             " %(default)s).")
+    parser.add_argument('--small', action='store_true',
+                        help="Small dataset. Only applicable to NPDDataset (default:"
+                             " %(default)s).")
+    parser.add_argument('--only_gcn', action='store_true',
+                        help="Do not use SAGEConv in the grid search (default:"
+                             " %(default)s).")
+    parser.add_argument('--patience', type=int, default=20,
+                        help="Early-stopping patience epochs (default:"
+                             " %(default)s).")
+    parser.add_argument('-b', '--batch_size', type=int, default=-1, metavar='B',
+                        help="The size of the batches used during training"
+                             "(default: %(default)s).")
+    parser.add_argument('--dropout', type=float, default=0.3, metavar='P',
+                        help="Dropout probability in the final dense layer"
+                             " (default: %(default)s).")
+    parser.add_argument('--folds', type=int, default=10,
+                        help="Number of outer folds (default: %(default)s).")
+    parser.add_argument('-c', '--hidden', type=int, default=None, metavar='H',
+                        help="Fix the number of channels during the grid search.")
+    parser.add_argument('--min_layers', type=int, default=2, metavar='L',
+                        help="Minimum number of layers in the grid search"
+                             "(default: %(default)s).")
+    parser.add_argument('--max_layers', type=int, default=3, metavar='L',
+                        help="Maximum number of layers in the grid search (default:"
+                             " %(default)s).")
+    parser.add_argument('--inner_layers', type=int, default=2, metavar='L',
+                        help="Number of layers within each convolutional block"
+                             " (default: %(default)s).")
+    parser.add_argument('--to_pickle', type=str, default='cv_results.pickle', metavar='PATH',
+                        help="Path of the output pickle storing the history of the"
+                             " cross-validation (default: %(default)s).")
+    parser.add_argument('--from_pickle', type=str, default=None, metavar='PATH',
+                        help="Compute the outer-fold accuracy of the given history."
+                             " If set, ignores every other parameter and does not perform"
+                             " cross validation (default: %(default)s).")
     args = parser.parse_args()
 
     if args.from_pickle is not None:

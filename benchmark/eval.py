@@ -30,40 +30,110 @@ torch_geometric.nn.add_pool_x = add_pool_x
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='CoverPool')
-    parser.add_argument('--dataset', type=str, default='PROTEINS')
-    parser.add_argument('--cover_priority', type=str, default='default')
-    parser.add_argument('--kplex_priority', type=str, default='default')
-    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add', 'max'])
-    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'])
-    parser.add_argument('--edge_pool_op', type=str, default='add')
-    parser.add_argument('--jumping_knowledge', type=str, default='cat')
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=-1)
-    parser.add_argument('--lr', type=float, default=0.001)
-    parser.add_argument('--weight_decay', type=float, default=0.001)
-    parser.add_argument('--dropout', type=float, default=0.3)
-    parser.add_argument('--simplify', action='store_true')
-    parser.add_argument('--dense', action='store_true')
-    parser.add_argument('--dense_from', type=int, default=0)
-    parser.add_argument('--easy', action='store_true')
-    parser.add_argument('--small', action='store_true')
-    parser.add_argument('--ratio', type=float, default=0.8)
-    parser.add_argument('--split', type=float, default=0.1)
-    parser.add_argument('--layers', type=int, default=3)
-    parser.add_argument('--inner_layers', type=int, default=2)
-    parser.add_argument('--hidden', type=int, default=64)
-    parser.add_argument('--method', type=str, default='softmax')
-    parser.add_argument('--edge_dropout', type=float, default=0.2)
-    parser.add_argument('--q', type=float, default=None)
-    parser.add_argument('--k', type=int, default=8)
-    parser.add_argument('--k_step_factor', type=float, default=0.5)
-    parser.add_argument('--graph_sage', action='store_true')
-    parser.add_argument('--skip_covered', action='store_true')
-    parser.add_argument('--no_readout', action='store_false')
-    parser.add_argument('--no_cache', action='store_false')
-    parser.add_argument('--ks', nargs='*', type=int)
+    parser = argparse.ArgumentParser(description="Evaluate a given model.")
+    parser.add_argument('-m', '--model', type=str, default='CoverPool',
+                        help="Model to evaluate (default: %(default)s).",
+                        choices=['BaseModel', 'CoverPool', 'DiffPool', 'TopKPool',
+                                 'SAGPool', 'EdgePool', 'Graclus'])
+    parser.add_argument('-d', '--dataset', type=str, default='PROTEINS', metavar='DS',
+                        help="Dataset on which the cross-validation is performed."
+                             " Must be a dataset from the TU Dortmund collection"
+                             " or NPDDataset (default: %(default)s).")
+    parser.add_argument('--jumping_knowledge', type=str, default='cat',
+                        help="Jumping knowledge aggregation type (default:"
+                             " %(default)s).", 
+                        choices=['cat', 'lstm', ''])
+    parser.add_argument('--global_pool_op', type=str, nargs='+', default=['add'], metavar='POOL',
+                        help="Global aggregation function(s) (default:"
+                             " %(default)s).")
+    parser.add_argument('--node_pool_op', type=str, nargs='+', default=['add'], metavar='POOL',
+                        help="Local aggregation functions(s) (default:"
+                             " %(default)s).")
+    parser.add_argument('--edge_pool_op', type=str, default='add',
+                        help="Edge weight aggregation function (default:"
+                             " %(default)s)",
+                        choices=['add', 'max', 'min', 'mean'])
+    parser.add_argument('--epochs', type=int, default=1000, metavar='E',
+                        help="Number of epochs (default: %(default)s).")
+    parser.add_argument('-k', '--k', type=int, default=2, metavar='K',
+                        help="K-plex parameter. Only applicable to CoverPool"
+                             " (default: %(default)s).")
+    parser.add_argument('-r', '--k_step_factor', type=float, default=1., metavar='R',
+                        help="Reduction factor of the k parameter. Only applicable"
+                             " to CoverPool (default: %(default)s).")
+    parser.add_argument('-q', '--q', type=float, default=None,
+                        help="Hub-promotion quantile threshold (must be a float"
+                             " in [0, 1]). Only applicable to CoverPool (default: 1).")
+    parser.add_argument('--simplify', action='store_true',
+                        help="Apply simplification to coarsened grpahs."
+                             " Only applicable to CoverPool.")
+    parser.add_argument('--dense', action='store_true',
+                        help="Use the dense form computation.")
+    parser.add_argument('--dense_from', type=int, default=0, metavar='L',
+                        help="Use the dense form starting from the given layer,"
+                             " and use the sparse form for the other layers."
+                             " Only applicable to BaseModel and CoverPool (default:"
+                             " %(default)s).")
+    parser.add_argument('--easy', action='store_true',
+                        help="Easy dataset. Only applicable to NPDDataset.")
+    parser.add_argument('--small', action='store_true',
+                        help="Small dataset. Only applicable to NPDDataset.")
+    parser.add_argument('-b', '--batch_size', type=int, default=-1, metavar='B',
+                        help="The size of the batches used during training"
+                             " (default: %(default)s).")
+    parser.add_argument('--dropout', type=float, default=0.3, metavar='P',
+                        help="Dropout probability in the final dense layer"
+                             " (default: %(default)s).")
+    parser.add_argument('-c', '--hidden', type=int, default=64, metavar='H',
+                        help="Number of channels (default: %(default)s).")
+    parser.add_argument('-l', '--layers', type=int, default=2, metavar='L',
+                        help="Number of convolutional blocks ")
+    parser.add_argument('--inner_layers', type=int, default=2, metavar='L',
+                        help="Number of layers within each convolutional block"
+                             " (default: %(default)s).")
+    parser.add_argument('--cover_priority', type=str, default='default',
+                        help="Priority used to extract the pivot node (default:"
+                             " %(default)s).",
+                        choices=["random", "min_degree", "max_degree", "min_uncovered", 
+                                 "max_uncovered", "default"])
+    parser.add_argument('--kplex_priority', type=str, default='default',
+                        help="Priority used to extract the next k-plex candidate"
+                             " node (default: %(default)s).",
+                        choices=["random", "min_degree", "max_degree", "min_uncovered", 
+                                 "max_uncovered", "min_in_kplex", "max_in_kplex", 
+                                 "min_candidates", "max_candidates", "default"]) 
+    parser.add_argument('--lr', type=float, default=0.001,
+                        help="Learning rate (default: %(default)s).")
+    parser.add_argument('--weight_decay', type=float, default=0.001, metavar='WD',
+                        help="Weight decay (default: %(default)s).")
+    parser.add_argument('--ratio', type=float, default=0.8,
+                        help="Output/input number of nodes ratio. Only Applicable to"
+                             " DiffPool, TopKPool, and SAGPool (default: %(default)s).")
+    parser.add_argument('--split', type=float, default=0.1, metavar='S',
+                        help="Test split (default: %(default)s).")
+    parser.add_argument('--method', type=str, default='softmax',
+                        help="Function to apply to compute the edge score from raw"
+                             " edge scores. Only applicable to EdgePool (default:"
+                             " %(default)s).",
+                        choices=['softmax', 'sigmoid', 'tanh'])
+    parser.add_argument('--edge_dropout', type=float, default=0.2, metavar='P',
+                        help="probability with which to drop edge scores during"
+                             " training. Only applicable to EdgePool (default:"
+                             " %(default)s).")
+    parser.add_argument('--graph_sage', action='store_true',
+                        help="Use SAGEConv instead of GCNConv.")
+    parser.add_argument('--skip_covered', action='store_true',
+                        help="Give max priority to uncovered nodes. Only applicable"
+                             " to CoverPool")
+    parser.add_argument('--no_readout', action='store_false', 
+                        help="Use only the final global pooling aggregation as input"
+                             " to the dense layers.")
+    parser.add_argument('--no_cache', action='store_false',
+                        help="Do not precoumpute the graph covers.")
+    parser.add_argument('--ks', nargs='*', type=int, metavar='K',
+                        help="Specify the k value for each layer. Only applicable to"
+                             " CoverPool. If set, --k, --k_factor and --layers options"
+                             " will be ignored.")
     args = parser.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
