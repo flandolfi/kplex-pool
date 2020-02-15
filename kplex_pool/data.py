@@ -10,6 +10,16 @@ from torch_geometric.transforms import ToDense
 
 
 class Cover(Data):
+    """Augment a Data object with `"cover_index"` and `num_clusters"` keys. 
+    Support slicing on cover index matrices.
+
+    Args:
+        cover_index (LongTensor, optional): A cover index matrix (in sparse
+            coordinate form), assigning every node to a specific k-plex in the
+            cover. Defaults to None.
+        num_clusters (int, optional): Number of k-plexes in the cover matrix. 
+            Defaults to None.
+    """
     def __init__(self, cover_index=None, num_clusters=None, **kwargs):
         self.cover_index = cover_index
 
@@ -52,6 +62,11 @@ class Cover(Data):
 
 
 class CustomDataset(InMemoryDataset):
+    """Create a dataset from a `torch_geometric.Data` list.
+    
+    Args:
+        data_list (list): List of graphs.
+    """
     def __init__(self, data_list):
         super(CustomDataset, self).__init__("")
         self.data, self.slices = self.collate(data_list)
@@ -64,6 +79,11 @@ class CustomDataset(InMemoryDataset):
 
 
 class DenseDataset(Dataset):
+    """Dense Graphs Dataset.
+    
+    Args:
+        data_list (list): list of graphs.
+    """
     def __init__(self, data_list):
         super(DenseDataset, self).__init__("")
 
@@ -126,6 +146,32 @@ class DenseDataset(Dataset):
 
 
 class NDPDataset(InMemoryDataset):
+    """The synthetic dataset from `"Hierarchical Representation Learning in 
+    Graph Neural Networks with Node Decimation Pooling"
+    <https://arxiv.org/abs/1910.11436>`_ paper.
+
+    Args:
+        root (string): Root directory where the dataset should be saved.
+        split (string): If `"train"`, loads the training dataset.
+            If `"val"`, loads the validation dataset.
+            If `"test"`, loads the test dataset. Defaults to `"train"`.
+        easy (bool, optional): If `True`, use the easy version of the dataset.
+            Defaults to `True`.
+        small (bool, optional): If `True`, use the small version of the
+            dataset. Defaults to `True`.
+        transform (callable, optional): A function/transform that takes in an
+            `torch_geometric.data.Data` object and returns a transformed
+            version. The data object will be transformed before every access.
+            Defaults to `None`.
+        pre_transform (callable, optional): A function/transform that takes in
+            an `torch_geometric.data.Data` object and returns a
+            transformed version. The data object will be transformed before
+            being saved to disk. Defaults to `None`.
+        pre_filter (callable, optional): A function that takes in an
+            `torch_geometric.data.Data` object and returns a boolean
+            value, indicating whether the data object should be included in the
+            final dataset. Defaults to `None`.
+    """
     base_url = ('http://github.com/FilippoMB/'
                 'Benchmark_dataset_for_graph_classification/'
                 'raw/master/datasets/')
