@@ -3,6 +3,23 @@ from kplex_pool import simplify_cpu, cc_cpu
 
 
 def simplify(edge_index, edge_attr, keep_max=True, num_nodes=None):
+    """Sparsify the input graph by removing every edge with weight lower (or
+    higher) than the highest (lowest) threshold value such that the resulting
+    graph has the same components of the input one.
+    
+    Args:
+        edge_index (LongTensor): Edge coordinate matrix.
+        edge_attr (FloatTensor): Weights of the edges. 
+        keep_max (bool, optional): If `True`, the algorithm drops the weights
+            with the lowest values and finds the highest threshold value. 
+            Viceversa if `False`.
+        num_nodes (int, optional): Number of total nodes in the graph. 
+            Defaults to `None`.
+    
+    Returns:
+        (LongTensor, FloatTensor): The simplified graph, in sparse coordinate
+            form.
+    """
     if num_nodes is None:
         num_nodes = edge_index.max().item() + 1
 
