@@ -1,6 +1,7 @@
 #include <torch/extension.h>
 
 
+// Depth-first search algorithm.
 void dfs(int64_t from, int64_t current_component, at::TensorAccessor<int64_t, 1> components, 
          std::vector<std::unordered_set<int64_t>>& neighbors, std::vector<bool>& found) {
     if (found[from])
@@ -13,6 +14,7 @@ void dfs(int64_t from, int64_t current_component, at::TensorAccessor<int64_t, 1>
         dfs(node, current_component, components, neighbors, found);
 }
 
+// Find the component of each node in the input graph. 
 at::Tensor connected_components(at::Tensor row, at::Tensor col, int64_t num_nodes) {
     auto components = at::zeros(num_nodes, row.options());
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);

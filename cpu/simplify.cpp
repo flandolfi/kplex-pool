@@ -10,6 +10,11 @@ sort_by_weight(at::Tensor row, at::Tensor col, at::Tensor weight, bool descendin
     return std::make_tuple(row.index_select(0, perm), col.index_select(0, perm), weight);
 }
 
+// Graph simplification post-processing. This algorithm, instead of removing
+// one edge at a time from the graphs, removes all the edges at once and then
+// reinsert them from the most important to the least important, and checks
+// the graph connectivity by using a disjoint-set (or union-find) data
+// structure (a-la Kruskal).
 std::tuple<at::Tensor, at::Tensor, at::Tensor> 
 simplify_cutoff(at::Tensor row, at::Tensor col, at::Tensor weight, int64_t num_nodes, bool max = true) {
     std::tie(row, col, weight) = sort_by_weight(row, col, weight, max);

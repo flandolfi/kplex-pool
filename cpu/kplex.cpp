@@ -1,6 +1,16 @@
 #include <torch/extension.h>
 
 
+// The numbering follows this convention:
+//  - 0x0-: Ascending order
+//  - 0x1-: Descending order
+//
+// Then:
+//  - 0x-0: Degree order
+//  - 0x-1: Uncovered neighbors order
+//  - 0x-2: Neighbors in k-plex order
+//  - 0x-3: Neighbors in candidate set order
+//  - 0x-4: Random order
 enum class NodePriority : unsigned char { 
     MIN_DEGREE      = 0x00,
     MAX_DEGREE      = 0x10, 
@@ -12,6 +22,9 @@ enum class NodePriority : unsigned char {
     MAX_CANDIDATES  = 0x13,
     RANDOM          = 0x04
 };
+
+// We need to know whether two NodePriorities use the same information to sort
+// the nodes, hence we distinguish them by their four least significant bits.
 
 struct PriorityHash {
     std::size_t operator()(const NodePriority& p) const { 
@@ -27,15 +40,37 @@ struct PriorityEqual {
     }
 };
 
+// We map each NodePriority to a vector of int64_t values, using Hash/Equals
+// the two previous structs. This allow us not to generate twice the same
+// information.
 using PriorityContainer = std::unordered_map<NodePriority, std::vector<int64_t>, PriorityHash, PriorityEqual>;
+
+// Class used to compare two nodes by their priority.
 using Compare = std::function<bool(const int64_t&, const int64_t&)>;
 
-/* From torch_cluster/cpu/utils.h by @rusty1s */
+// From torch_cluster/cpu/utils.h by @rusty1s
 std::tuple<at::Tensor, at::Tensor> remove_self_loops(at::Tensor row, at::Tensor col) {
     auto mask = row != col;
     return std::make_tuple(row.masked_select(mask), col.masked_select(mask));
 }
 
+//                        *** NOTE TO REVIEWERS ***                         
+// The following algorithms (FindKPlex and KPlexCover) are just a preliminary
+// version and could be highly improved. For example: given that the priority
+// values are just numbers from 1 to n, where n is the number of nodes, one
+// can use
+//    `std::vector<std::unordered_set<int64_t>> candidates(n);`
+// and define the candidates as a vector mapping a priority to the nodes
+// with that priority, and then extract them by enumerating all the priorities
+// from 0 to n, obtaining an amortized complexity of O(n). Nodes that change
+// priority during the execution of the algorithm can just be moved to one set
+// to another in O(1) or, if their priority becomes higher than the current
+// one, can be put in a temporary bucket with highest priority.
+
+
+// FindKPlex algorithm. Most of the code is needed to perform set operations
+// and to manage the priorities and their update. For a more simplified (and
+// more understendable) version, see the pseudocode in the article.
 std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int64_t>>& neighbors, int64_t node, int64_t k, 
             Compare kplex_cmp, PriorityContainer& priorities, const std::function<void(int64_t)>& node_callback) {
     std::unordered_set<int64_t> excluded({node});
@@ -60,6 +95,8 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
             }
         }
 
+        // Extract the node with the highest priority. This can deteriorate
+        // the efficency of the algorithm.
         auto min = std::min_element(candidates.begin(), candidates.end(), kplex_cmp);
         auto candidate = *min;
         candidates.erase(min);
@@ -122,6 +159,8 @@ std::unordered_set<int64_t> find_kplex(const std::vector<std::unordered_set<int6
     return kplex;
 }
 
+// Combine multiple priorities, generating a lexicographic ordering. Ascending
+// and descending ordering are defined by the `less` argument.
 template<typename T> 
 Compare make_comparer(const T& priority, Compare deafault_cmp, bool less = true) {
     if (less)
@@ -134,6 +173,7 @@ Compare make_comparer(const T& priority, Compare deafault_cmp, bool less = true)
     });
 }
 
+// Creates the comparer from the list of NodePriority.
 Compare build_comparer(const std::vector<std::unordered_set<int64_t>>& neighbors, 
         const std::vector<NodePriority>& priority_types, PriorityContainer& priority_values) {
     Compare cmp([](const int64_t& lhs, const int64_t& rhs){ return lhs < rhs; }); 
@@ -171,9 +211,12 @@ Compare build_comparer(const std::vector<std::unordered_set<int64_t>>& neighbors
     return cmp;
 }
 
+// KPlexCover algorithm. Most of the code is needed to perform set operations
+// and to manage the priorities and their update. For a more simplified (and
+// more understendable) version, see the pseudocode in the article.
 at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_nodes,
             std::vector<NodePriority> cover_priorities, std::vector<NodePriority> kplex_priorities, 
-            bool skip_covered = true) {
+            bool skip_covered = false) {
     std::tie(row, col) = remove_self_loops(row, col);
     std::vector<std::unordered_set<int64_t>> neighbors(num_nodes);
     auto row_acc = row.accessor<int64_t, 1>(), col_acc = col.accessor<int64_t, 1>();
@@ -185,12 +228,15 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
     for (auto i = 0; i < row.size(0); i++)
         neighbors[row_acc[i]].insert(col_acc[i]);
 
+    // Two different comparers: one for KPlexCover, the other for FindKPlex
     Compare cover_cmp = build_comparer(neighbors, cover_priorities, priorities); 
     Compare kplex_cmp = build_comparer(neighbors, kplex_priorities, priorities); 
 
+    // Give highest priority to uncovered nodes.
     if (skip_covered) 
         kplex_cmp = make_comparer(covered_nodes, kplex_cmp);
 
+    // Ordered set. This adds an avoidable  O(log n).
     std::set<int64_t, Compare> candidates(cover_cmp);
     std::vector<std::unordered_set<int64_t>> cover;
     int64_t output_dim = 0;
@@ -199,6 +245,8 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
         candidates.insert(i);
     }
 
+    // Callback used to updata global priorities during the execution of
+    // FindKPlex.
     std::function<void(int64_t)> callback([&](int64_t node) {
         candidates.erase(node);
 
@@ -215,6 +263,7 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
         covered_nodes[node] = true;
     });
 
+    // Main loop.
     while (!candidates.empty()) {
         auto candidate = *(candidates.begin());
         candidates.erase(candidates.begin());
@@ -223,6 +272,7 @@ at::Tensor kplex_cover(at::Tensor row, at::Tensor col, int64_t k, int64_t num_no
         cover.push_back(kplex);
     }
 
+    // Generate cover matrix.
     auto index = at::zeros({2, output_dim}, row.options());
     auto index_acc = index.accessor<int64_t, 2>();
     auto idx = 0;

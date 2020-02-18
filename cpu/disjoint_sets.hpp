@@ -4,6 +4,7 @@
 #include <torch/extension.h>
 
 
+// Disjoint-sets (or union-find) data structure.
 class DisjointSets {
 private:
     std::vector<int64_t> parent;

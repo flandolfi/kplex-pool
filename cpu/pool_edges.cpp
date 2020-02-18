@@ -1,7 +1,13 @@
 #include <torch/extension.h>
 
-enum class PoolOp {MAX, MIN, MEAN, ADD, MUL, DIV};
 
+enum class PoolOp {MAX, MIN, MEAN, ADD, MUL};
+
+// Aggregate all the edges from one k-plex to another. This is done by
+// iterating all the edges and, instead of creating a copy for each k-plex
+// pair on the endvertices of each edge, exploits the order-invariance of
+// the aggregation functions and keeps only the partial aggregation inside
+// an unordered_map, having as index a pair of k-plex indices. 
 std::tuple<at::Tensor, at::Tensor, at::Tensor> 
 pool_edges(at::Tensor index_row, at::Tensor index_col, at::Tensor row, at::Tensor col, 
         at::Tensor weight, PoolOp pool_op, int64_t num_nodes) {
@@ -47,7 +53,6 @@ pool_edges(at::Tensor index_row, at::Tensor index_col, at::Tensor row, at::Tenso
                 break;
 
             case PoolOp::MUL:
-            case PoolOp::DIV:
                 pool_fun = [](scalar_t x, scalar_t y){ return x * y; };
                 break;
         }
@@ -95,10 +100,6 @@ pool_edges(at::Tensor index_row, at::Tensor index_col, at::Tensor row, at::Tenso
                 case PoolOp::MEAN:
                     out_weight_acc[count] = map.second/out_edge_count[map.first];
                     break;
-                
-                case PoolOp::DIV:
-                    out_weight_acc[count] = 1./map.second;
-                    break;
 
                 default:
                     out_weight_acc[count] = map.second;
@@ -120,7 +121,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .value("min", PoolOp::MIN)
         .value("mean", PoolOp::MEAN)
         .value("add", PoolOp::ADD)
-        .value("mul", PoolOp::MUL)
-        .value("div", PoolOp::DIV)    
+        .value("mul", PoolOp::MUL)  
         .export_values();
 }
