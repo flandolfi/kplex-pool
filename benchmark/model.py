@@ -290,9 +290,10 @@ class CoverPool(BaseModel):
         if len(self.node_pool_op) > 1:
             self.blocks = torch.nn.ModuleList()
             
-            for _ in range(self.num_layers - 1):
+            for l in range(1, self.num_layers):
                 self.blocks.append(Block(len(self.node_pool_op)*self.hidden, self.hidden, self.hidden, 
-                                         self.num_inner_layers, self.jumping_knowledge, self.graph_sage, self.dense))
+                                         self.num_inner_layers, self.jumping_knowledge, self.graph_sage, 
+                                         self.dense <= l))
 
     def collate(self, index):
         self.hierarchy = self.cover_fun(self.dataset, index.view(-1).to(self.device))
@@ -551,6 +552,14 @@ class Graclus(BaseModel):
         ops = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
         self.node_pool_op = [getattr(torch_geometric.nn, f'{op}_pool_x' if i else f'{op}_pool') for i, op in enumerate(ops)]
     
+        if len(self.node_pool_op) > 1:
+            self.blocks = torch.nn.ModuleList()
+            
+            for l in range(1, self.num_layers):
+                self.blocks.append(Block(len(self.node_pool_op)*self.hidden, self.hidden, self.hidden, 
+                                         self.num_inner_layers, self.jumping_knowledge, self.graph_sage, 
+                                         self.dense <= l))
+
     def pool(self, data, layer):
         cluster = graclus(data.edge_index, data.edge_attr, data.num_nodes)
         data = self.node_pool_op[0](cluster, data)
