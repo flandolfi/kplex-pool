@@ -562,14 +562,14 @@ class Graclus(BaseModel):
 
     def pool(self, data, layer):
         cluster = graclus(data.edge_index, data.edge_attr, data.num_nodes)
-        data = self.node_pool_op[0](cluster, data)
+        out = self.node_pool_op[0](cluster, data)
 
-        if len(self.node_pool_op) > 0:
-            xs = [data.x]
+        if len(self.node_pool_op) > 1:
+            xs = [out.x]
 
             for op in self.node_pool_op[1:]:
                 xs.append(op(cluster, data.x, data.batch))
 
-            data.x = torch.cat(xs, dim=-1)
+            out.x = torch.cat(xs, dim=-1)
 
-        return data
+        return out
