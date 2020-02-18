@@ -568,7 +568,8 @@ class Graclus(BaseModel):
             xs = [out.x]
 
             for op in self.node_pool_op[1:]:
-                xs.append(op(cluster, data.x, data.batch))
+                x = op(cluster, data.x, data.batch)
+                xs.append(x[0] if isinstance(x, tuple) else x)
 
             out.x = torch.cat(xs, dim=-1)
 
