@@ -20,10 +20,12 @@ __version__ = '0.0.1'
 url = 'https://github.com/flandolfi/kplex-pool'
 
 install_requires = [
+    'numpy',
     'torch', 
     'torch_cluster', 
     'torch_sparse', 
-    'torch_geometric'
+    'torch_geometric',
+    'tqdm'
 ]
 setup_requires = ['pytest-runner']
 tests_require = ['pytest', 'pytest-cov']
