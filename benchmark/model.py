@@ -280,9 +280,10 @@ class CoverPool(BaseModel):
             resulting pooling will be the concatenation of all the provided 
             functions. Defaults to "add".
     """
-    def __init__(self, cover_fun, node_pool_op='add', **kwargs):
-        super(CoverPool, self).__init__(**kwargs)
+    def __init__(self, dataset, cover_fun, node_pool_op='add', **kwargs):
+        super(CoverPool, self).__init__(dataset=dataset, **kwargs)
 
+        self.sparse_dataset = dataset
         self.cover_fun = cover_fun
         self.hierarchy = []
         self.node_pool_op = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
@@ -296,7 +297,7 @@ class CoverPool(BaseModel):
                                          self.dense <= l))
 
     def collate(self, index):
-        self.hierarchy = self.cover_fun(self.dataset, index.view(-1).to(self.device))
+        self.hierarchy = self.cover_fun(self.sparse_dataset, index.view(-1).to(self.device))
         hierarchy = []
 
         for layer, data in enumerate(self.hierarchy):
