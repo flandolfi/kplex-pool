@@ -229,7 +229,7 @@ class KPlexCover:
             return [DenseDataset(ds) if l >= dense else ds for l, ds in enumerate(hierarchy)]
 
         if dataset is None:
-            return cover_fun
+            return lambda ds, idx: [c[:] for c in cover_fun(ds, idx)]
 
         cache = cover_fun(dataset, slice(None))
 
