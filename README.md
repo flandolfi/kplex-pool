@@ -1,10 +1,16 @@
 # K-Plex Cover Pooling for Graph Neural Networks #
 
-This repository contains the implementation and the experimental setup used in *"K-Plex Cover Pooling for Graph Neural Networks"* (NeurIPS 2020).
+This repository contains the implementation and the experimental setup used in 
+*"K-Plex Cover Pooling for Graph Neural Networks"* (NeurIPS 2020).
 
 ## Abstract ##
 
-Graph pooling methods provide mechanisms for structure reduction that are intended to ease the diffusion of context between nodes further in the graph, and that typically leverage community discovery mechanisms or node and edge pruning heuristics. In this paper, we introduce a novel pooling technique which borrows from classical results in graph theory that is non-parametric and generalizes well to graphs of different nature and connectivity pattern. Our pooling method, named KPlexPool, builds on the concepts of graph covers and *k*-plexes, i.e. pseudo-cliques where each node can miss up to *k* links. The experimental evaluation on benchmarks on molecular and social graph classification shows that KPlexPool achieves state of the art performances against both parametric and non-parametric pooling methods in the literature, despite generating pooled graphs based solely on topological information.
+We introduce a novel pooling technique which borrows from classical results in graph theory that is non-parametric and 
+generalizes well to graphs of different nature and connectivity pattern. Our pooling method, named KPlexPool, builds on 
+the concepts of graph covers and *k*-plexes, i.e. pseudo-cliques where each node can miss up to *k* links. The 
+experimental evaluation on benchmarks on molecular and social graph classification shows that KPlexPool achieves state 
+of the art performances against both parametric and non-parametric pooling methods in the literature, despite 
+generating pooled graphs based solely on topological information.
 
 ## Contents ##
 
@@ -133,7 +139,7 @@ optional arguments:
         --k_step_factor 0.5 \
         --node_pool_op add max
 
-#### Evalutation ####
+#### Evaluation ####
 
 To run an experiment, use the command `python -m benchmark.eval <...>`, with the following options
 ```
