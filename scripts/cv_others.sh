@@ -10,4 +10,8 @@ for POOL in BaseModel Graclus TopKPool SAGPool; do
    done
 done
 
+POOL=Graclus
 
+for DS in DD PROTEINS ENZYMES NCI1; do
+    python -m benchmark.cv --model=$POOL --dataset=$DS --to_pickle=results/${POOL}_${DS}_ADDMAX.pickle --node_pool_op add max
+done
