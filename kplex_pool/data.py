@@ -108,11 +108,11 @@ class DenseDataset(Dataset):
         for key in dense_list[0].keys:
             self.data[key] = default_collate([d[key] for d in dense_list])
 
-    def __len__(self):
+    def len(self):
         if self.data.x is not None:
             return self.data.x.size(0)
 
-        if self.data.adj is not None:
+        if 'adj' in self.data:
             return self.data.adj.size(0)
 
         return 0
@@ -137,6 +137,9 @@ class DenseDataset(Dataset):
             out.cover_mask = cover_mask[:, :max_clusters]
 
         return out
+
+    def index_select(self, idx):
+        return self.get(idx)
 
     def _download(self):
         pass

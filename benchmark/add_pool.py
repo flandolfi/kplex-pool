@@ -1,12 +1,12 @@
-from torch_geometric.data import Batch
-from torch_geometric.utils import scatter_
+from torch_scatter import scatter
 
+from torch_geometric.data import Batch
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
 from torch_geometric.nn.pool.pool import pool_edge, pool_batch, pool_pos
 
 
 def _add_pool_x(cluster, x, size=None):
-    return scatter_('add', x, cluster, dim=0, dim_size=size)
+    return scatter(x, cluster, dim=0, dim_size=size, reduce='add')
 
 
 def add_pool_x(cluster, x, batch, size=None):

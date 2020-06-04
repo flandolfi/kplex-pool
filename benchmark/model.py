@@ -90,7 +90,7 @@ class Block(torch.nn.Module):
 
         for conv in self.convs:
             if self.dense:
-                x = conv(x, data.adj, mask=data.mask, add_loop=True)
+                x = conv(x, data.adj, mask=data.mask)
             else:
                 if self.graph_sage:
                     x = conv(x, data.edge_index)
