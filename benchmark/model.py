@@ -1,4 +1,5 @@
 from math import ceil
+from abc import abstractmethod
 
 import torch
 import torch.nn.functional as F
@@ -20,8 +21,11 @@ from torch_geometric.nn import (
     graclus
 )
 
+from cugraph.community import leiden, louvain, ecg
+
 from kplex_pool import cover_pool_node
 from kplex_pool.data import DenseDataset
+from benchmark import utils
 
 
 class Block(torch.nn.Module):
@@ -525,7 +529,7 @@ class EdgePool(BaseModel):
         return data
 
 
-class Graclus(BaseModel):
+class ClusterPool(BaseModel):
     """Graclus Model.
 
     Extends the `BaseModel` class. After every convolutional block, this model
@@ -539,7 +543,7 @@ class Graclus(BaseModel):
             functions. Defaults to "add".
     """
     def __init__(self, node_pool_op='add', **kwargs):
-        super(Graclus, self).__init__(dense=False, **kwargs)
+        super(ClusterPool, self).__init__(dense=False, **kwargs)
         ops = node_pool_op if isinstance(node_pool_op, list) else [node_pool_op]
         self.node_pool_op = [getattr(torch_geometric.nn, f'{op}_pool_x' if i else f'{op}_pool') for i, op in enumerate(ops)]
     
@@ -551,8 +555,12 @@ class Graclus(BaseModel):
                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, 
                                          self.dense <= l))
 
+    @abstractmethod
+    def get_clusters(self, data):
+        return NotImplementedError
+
     def pool(self, data, layer):
-        cluster = graclus(data.edge_index, data.edge_attr, data.num_nodes)
+        cluster = self.get_clusters(data)
         out = self.node_pool_op[0](cluster, data)
 
         if len(self.node_pool_op) > 1:
@@ -565,3 +573,26 @@ class Graclus(BaseModel):
             out.x = torch.cat(xs, dim=-1)
 
         return out
+
+
+class Graclus(ClusterPool):
+    def get_clusters(self, data):
+        return graclus(data.edge_index, data.edge_attr, data.num_nodes)
+
+
+class Louvain(ClusterPool):
+    def get_clusters(self, data):
+        df = louvain(utils.to_cugraph(data))
+        return utils.from_dlpack(df['partition'].to_dlpack())
+
+
+class Leiden(ClusterPool):
+    def get_clusters(self, data):
+        df = leiden(utils.to_cugraph(data))
+        return utils.from_dlpack(df['partition'].to_dlpack())
+
+
+class ECG(ClusterPool):
+    def get_clusters(self, data):
+        df = ecg(utils.to_cugraph(data))
+        return utils.from_dlpack(df['partition'].to_dlpack())
