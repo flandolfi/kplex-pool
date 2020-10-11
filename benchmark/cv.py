@@ -44,7 +44,8 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--model', type=str, default='CoverPool',
                         help="Model to cross-validate (default: %(default)s).",
                         choices=['BaseModel', 'CoverPool', 'DiffPool', 'TopKPool',
-                                 'SAGPool', 'EdgePool', 'Graclus'])
+                                 'SAGPool', 'EdgePool', 'Graclus', 'Louvain',
+                                 'Leiden', 'ECG'])
     parser.add_argument('-d', '--dataset', type=str, default='PROTEINS', metavar='DS',
                         help="Dataset on which the cross-validation is performed."
                              " Must be a dataset from the TU Dortmund collection"

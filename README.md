@@ -26,7 +26,7 @@ generating pooled graphs based solely on topological information.
 
 ### Requirements ###
 
-To use this package make sure to have Python 3.6, CUDA 10.1 and GCC >=5.4.
+To use this package make sure to have Python 3.7, CUDA 10.1 and GCC >=5.4.
 We also suggest to use Anaconda/Miniconda.
 
 ### Installation ###
@@ -34,11 +34,10 @@ We also suggest to use Anaconda/Miniconda.
 Run the following commands in the project directory:
 
 ```shell script
-conda create -n kplex-pool python=3.6
+conda create -n kplex-pool python=3.7 -y
 conda activate kplex-pool
-conda install cudatoolkit=10.1
-conda install -c conda-forge c-compiler cxx-compiler
-conda install -c rapidsai cugraph
+conda install -y -c nvidia -c rapidsai -c numba -c conda-forge -c defaults \
+      cugraph=0.15 cudatoolkit=10.1 c-compiler cxx-compiler
 
 pip install -r requirements.txt
 pip install .
