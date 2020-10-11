@@ -582,17 +582,17 @@ class Graclus(ClusterPool):
 
 class Louvain(ClusterPool):
     def get_clusters(self, data):
-        df = louvain(utils.to_cugraph(data))
+        df, _ = louvain(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'].to_dlpack())
 
 
 class Leiden(ClusterPool):
     def get_clusters(self, data):
-        df = leiden(utils.to_cugraph(data))
+        df, _ = leiden(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'].to_dlpack())
 
 
 class ECG(ClusterPool):
     def get_clusters(self, data):
-        df = ecg(utils.to_cugraph(data))
+        df, _ = ecg(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'].to_dlpack())
