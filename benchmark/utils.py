@@ -14,7 +14,7 @@ def to_cugraph(graph: Data):
 
     df = cudf.from_dlpack(to_dlpack(data))
     return cx.from_cudf_edgelist(df, source=0, destination=1,
-                                 edge_attr=2 if graph.edge_attr else None,
+                                 edge_attr=None if graph.edge_attr is None else 2,
                                  renumber=False)
 
 

@@ -597,5 +597,5 @@ class ECG(ClusterPool):
         if data.edge_attr is None:
             data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
 
-        df, _ = ecg(utils.to_cugraph(data))
+        df = ecg(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'])
