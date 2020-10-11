@@ -1,15 +1,12 @@
-import sys
 import argparse
 import numpy as np
 from math import ceil
-from itertools import product
 
 import torch
 
 import torch_geometric
 from torch_geometric.datasets import TUDataset
 
-import skorch
 from skorch import NeuralNetClassifier
 from skorch.dataset import CVSplit, Dataset
 from skorch.helper import predefined_split
@@ -21,8 +18,7 @@ from kplex_pool.data import NDPDataset, CustomDataset
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
-from .add_pool import add_pool, add_pool_x
-
+from benchmark.add_pool import add_pool, add_pool_x
 
 
 torch_geometric.nn.add_pool = add_pool

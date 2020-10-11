@@ -1,15 +1,12 @@
-import sys
 import argparse
 import numpy as np
 import pandas as pd
-from itertools import product
 
 import torch
 
 import torch_geometric
 from torch_geometric.datasets import TUDataset
 
-import skorch
 from skorch import NeuralNetClassifier
 from skorch.callbacks import EarlyStopping, EpochScoring
 from skorch.helper import predefined_split
@@ -24,8 +21,7 @@ from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, Par
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
-from .add_pool import add_pool, add_pool_x
-
+from benchmark.add_pool import add_pool, add_pool_x
 
 
 torch_geometric.nn.add_pool = add_pool

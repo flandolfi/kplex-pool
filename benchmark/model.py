@@ -1,16 +1,12 @@
 from math import ceil
-from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear, BatchNorm1d, ModuleList
-from torch.utils.data.dataloader import default_collate
 
-import torch_sparse
 import torch_geometric
 from torch_geometric.utils import to_dense_batch, to_dense_adj
-from torch_geometric.transforms import ToDense
-from torch_geometric.data import Batch, Data, Dataset
+from torch_geometric.data import Batch
 from torch_geometric.nn import (
     GCNConv, 
     SAGEConv, 
@@ -20,17 +16,12 @@ from torch_geometric.nn import (
     TopKPooling,
     SAGPooling,
     EdgePooling,
-    dense_diff_pool, 
-    global_max_pool, 
-    global_add_pool, 
-    global_mean_pool,
+    dense_diff_pool,
     graclus
 )
 
-from kplex_pool import KPlexCover, cover_pool_node, cover_pool_edge, simplify
-from kplex_pool.utils import hub_promotion
-from kplex_pool.data import CustomDataset, DenseDataset
-
+from kplex_pool import cover_pool_node
+from kplex_pool.data import DenseDataset
 
 
 class Block(torch.nn.Module):
@@ -49,7 +40,6 @@ class Block(torch.nn.Module):
         dense (bool, optional): If `True`, the input will be processed in
             dense form. Defaults to `False`.
     """
-
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, 
                  mode="cat", graph_sage=False, dense=False):
         super(Block, self).__init__()

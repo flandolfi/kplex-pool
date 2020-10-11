@@ -34,12 +34,14 @@ We also suggest to use Anaconda/Miniconda.
 Run the following commands in the project directory:
 
 ```shell script
-conda create -n kplex-pool python=3.7
+conda create -n kplex-pool python=3.6
 conda activate kplex-pool
 conda install cudatoolkit=10.1
+conda install -c conda-forge c-compiler cxx-compiler
+conda install -c rapidsai cugraph
 
 pip install -r requirements.txt
-python setup.py install
+pip install .
 ``` 
 
 Optionally, run `python setup.py test` to execute the test suite.
