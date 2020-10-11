@@ -13,8 +13,8 @@ def to_cugraph(graph: Data):
         data = torch.cat((data, graph.edge_attr.view(-1, 1).clone().detach()), dim=-1)
 
     df = cudf.from_dlpack(to_dlpack(data))
-    return cx.from_cudf_edgelist(df, source='0', destination='1',
-                                 edge_attr='2' if graph.edge_attr else None,
+    return cx.from_cudf_edgelist(df, source=0, destination=1,
+                                 edge_attr=2 if graph.edge_attr else None,
                                  renumber=False)
 
 
