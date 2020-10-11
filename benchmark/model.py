@@ -582,12 +582,18 @@ class Graclus(ClusterPool):
 
 class Louvain(ClusterPool):
     def get_clusters(self, data):
+        if data.edge_attr is None:
+            data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
+
         df, _ = louvain(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'])
 
 
 class Leiden(ClusterPool):
     def get_clusters(self, data):
+        if data.edge_attr is None:
+            data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
+
         df, _ = leiden(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'])
 
