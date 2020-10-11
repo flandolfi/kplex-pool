@@ -1,11 +1,11 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 --find-links https://pytorch-geometric.com/whl/torch-1.6.0.html
-torch==1.6.0+cu102
-torchvision==0.7.0+cu102
-torch-scatter==latest+cu102
-torch-sparse==latest+cu102
-torch-cluster==latest+cu102
-torch-spline-conv==latest+cu102
+torch==1.6.0+cu101
+torchvision==0.7.0+cu101
+torch-scatter==latest+cu101
+torch-sparse==latest+cu101
+torch-cluster==latest+cu101
+torch-spline-conv==latest+cu101
 torch-geometric
 numpy
 pandas
