@@ -231,7 +231,7 @@ if __name__ == "__main__":
         })
     elif args.model == 'BaseModel':
         shared_params.update(module__dense=args.dense_from if args.dense else False)
-    elif args.model == 'Graclus':
+    elif args.model in {'Graclus', 'Louvain', 'Leiden', 'ECG'}:
         shared_params.update(module__node_pool_op=args.node_pool_op)
     else:
         param_grid.update({

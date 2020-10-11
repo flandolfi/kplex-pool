@@ -216,7 +216,7 @@ if __name__ == "__main__":
         params.update(module__method=args.method, module__edge_dropout=args.edge_dropout)
     elif args.model == 'BaseModel':
         params.update(module__dense=args.dense_from if args.dense else False)
-    elif args.model == 'Graclus':
+    elif args.model in {'Graclus', 'Louvain', 'Leiden', 'ECG'}:
         params.update(module__node_pool_op=args.node_pool_op)
     else:
         params.update(module__ratio=args.ratio)
