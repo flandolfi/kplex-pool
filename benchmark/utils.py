@@ -6,15 +6,17 @@ import cudf
 import cugraph as cx
 
 
-def to_cugraph(graph: Data):
-    data = graph.edge_index.T.clone().detach()
+def to_cugraph(data: Data):
+    df = data.edge_index
 
-    if graph.edge_attr is not None:
-        data = torch.cat((data, graph.edge_attr.view(-1, 1).clone().detach()), dim=-1)
+    if data.edge_attr is not None:
+        df = torch.cat((df, data.edge_attr.view(1, -1)), dim=0)
 
-    df = cudf.from_dlpack(to_dlpack(data))
+    df = df.clone().detach().contiguous().t()
+    df = cudf.from_dlpack(to_dlpack(df))
+
     return cx.from_cudf_edgelist(df, source=0, destination=1,
-                                 edge_attr=None if graph.edge_attr is None else 2,
+                                 edge_attr=None if data.edge_attr is None else 2,
                                  renumber=False)
 
 
