@@ -37,7 +37,7 @@ Run the following commands in the project directory:
 conda create -n kplex-pool python=3.7 -y
 conda activate kplex-pool
 conda install -y -c nvidia -c rapidsai -c numba -c conda-forge -c defaults \
-      cugraph=0.15 cudatoolkit=10.1 c-compiler cxx-compiler
+      dask-cudf dask-cuda cugraph=0.15 cudatoolkit=10.1 c-compiler cxx-compiler
 
 pip install -r requirements.txt
 pip install .
