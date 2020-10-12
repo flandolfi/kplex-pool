@@ -580,11 +580,7 @@ class Graclus(ClusterPool):
         return graclus(data.edge_index, data.edge_attr, data.num_nodes)
 
 
-class RapidsAI(ClusterPool):
-    def __init__(self, cluster_op=louvain, *args, **kwargs):
-        super(RapidsAI, self).__init__(*args, **kwargs)
-        self.cluster_op = cluster_op
-
+class Louvain(ClusterPool):
     def get_clusters(self, data):
         if not data.edge_index.numel():
             return torch.arange(data.num_nodes, dtype=torch.long, device=data.x.device)
@@ -592,20 +588,29 @@ class RapidsAI(ClusterPool):
         if data.edge_attr is None:
             data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
 
-        df, _ = self.cluster_op(utils.to_cugraph(data))
+        df, _ = louvain(utils.to_cugraph(data))
         return utils.from_cudf(df['partition'])
 
 
-class Louvain(RapidsAI):
-    def __init__(self, *args, **kwargs):
-        super(Louvain, self).__init__(louvain, *args, **kwargs)
+class Leiden(ClusterPool):
+    def get_clusters(self, data):
+        if not data.edge_index.numel():
+            return torch.arange(data.num_nodes, dtype=torch.long, device=data.x.device)
+
+        if data.edge_attr is None:
+            data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
+
+        df, _ = leiden(utils.to_cugraph(data))
+        return utils.from_cudf(df['partition'])
 
 
-class Leiden(RapidsAI):
-    def __init__(self, *args, **kwargs):
-        super(Leiden, self).__init__(leiden, *args, **kwargs)
+class ECG(ClusterPool):
+    def get_clusters(self, data):
+        if not data.edge_index.numel():
+            return torch.arange(data.num_nodes, dtype=torch.long, device=data.x.device)
 
+        if data.edge_attr is None:
+            data.edge_attr = torch.ones_like(data.edge_index[0], dtype=torch.float)
 
-class ECG(RapidsAI):
-    def __init__(self, *args, **kwargs):
-        super(ECG, self).__init__(ecg, *args, **kwargs)
+        df = ecg(utils.to_cugraph(data))
+        return utils.from_cudf(df['partition'])
