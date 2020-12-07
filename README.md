@@ -1,7 +1,7 @@
 # K-Plex Cover Pooling for Graph Neural Networks #
 
 This repository contains the implementation and the experimental setup used in 
-*"K-Plex Cover Pooling for Graph Neural Networks"* (NeurIPS 2020).
+*"K-Plex Cover Pooling for Graph Neural Networks"*, 1st Workshop on Learning Meets Combinatorial Algorithms (LMCA) @ NeurIPS 2020.
 
 ## Abstract ##
 
@@ -11,6 +11,19 @@ the concepts of graph covers and *k*-plexes, i.e. pseudo-cliques where each node
 experimental evaluation on benchmarks on molecular and social graph classification shows that KPlexPool achieves state 
 of the art performances against both parametric and non-parametric pooling methods in the literature, despite 
 generating pooled graphs based solely on topological information.
+
+## Citation ##
+
+```bibtex
+@inproceedings{
+    bacciu2020kplex,
+    title={K-plex Cover Pooling for Graph Neural Networks},
+    author={Bacciu, Davide and Conte, Alessio and Grossi, Roberto and Landolfi, Francesco and Marino, Andrea},
+    booktitle={1st Workshop on Learning Meets Combinatorial Algorithms at NeurIPS 2020},
+    year={2020},
+    url={https://openreview.net/forum?id=PFdGijb9sjx}
+}
+```
 
 ## Contents ##
 
