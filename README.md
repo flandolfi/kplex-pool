@@ -1,7 +1,7 @@
 # K-Plex Cover Pooling for Graph Neural Networks #
 
 This repository contains the implementation and the experimental setup used in 
-*"K-Plex Cover Pooling for Graph Neural Networks"*, 1st Workshop on Learning Meets Combinatorial Algorithms (LMCA) @ NeurIPS 2020.
+[*"K-Plex Cover Pooling for Graph Neural Networks"*](https://openreview.net/forum?id=PFdGijb9sjx), [1st Workshop on Learning Meets Combinatorial Algorithms (LMCA)](https://sites.google.com/view/lmca2020) @ NeurIPS 2020.
 
 ## Abstract ##
 
