@@ -18,6 +18,7 @@ from torch_geometric.nn import (
     SAGPooling,
     EdgePooling,
     dense_diff_pool,
+    dense_mincut_pool,
     graclus
 )
 
@@ -340,6 +341,7 @@ class DiffPool(BaseModel):
 
         num_nodes = self.dataset.max_nodes
         self.link_loss, self.ent_loss = 0., 0.
+        self.loss_function = dense_diff_pool
 
         if isinstance(ratio, list):
             self.num_layers = len(ratio) + 1
@@ -369,7 +371,7 @@ class DiffPool(BaseModel):
     def pool(self, data, layer):
         data.x, data.old_x = data.old_x, data.x
         s = self.pool_blocks[layer - 1](data)
-        data.x, data.adj, link_loss, ent_loss = dense_diff_pool(data.old_x, data.adj, s, data.mask)
+        data.x, data.adj, link_loss, ent_loss = self.loss_function(data.old_x, data.adj, s, data.mask)
         data.old_x = data.x
         data.mask = None
 
@@ -384,6 +386,12 @@ class DiffPool(BaseModel):
 
     def forward(self, index):
         return super(DiffPool, self).forward(index), self.link_loss, self.ent_loss
+    
+
+class MinCutPool(DiffPool):
+    def __init__(self, ratio=0.25, **kwargs):
+        super(MinCutPool, self).__init__(ratio=ratio, **kwargs)
+        self.loss_function = dense_mincut_pool
 
 
 class PoolLoss(torch.nn.Module):
