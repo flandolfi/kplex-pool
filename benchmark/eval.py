@@ -31,7 +31,7 @@ if __name__ == "__main__":
                         help="Model to evaluate (default: %(default)s).",
                         choices=['BaseModel', 'CoverPool', 'DiffPool', 'TopKPool',
                                  'SAGPool', 'EdgePool', 'Graclus', 'Louvain',
-                                 'Leiden', 'ECG', 'MinCut,Pool'])
+                                 'Leiden', 'ECG', 'MinCutPool'])
     parser.add_argument('-d', '--dataset', type=str, default='PROTEINS', metavar='DS',
                         help="Dataset on which the cross-validation is performed."
                              " Must be a dataset from the TU Dortmund collection"
