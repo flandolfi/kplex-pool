@@ -201,7 +201,7 @@ if __name__ == "__main__":
         'module__device': device,
         'module__global_pool_op': args.global_pool_op,
         'batch_size': args.batch_size,
-        'criterion': model.PoolLoss if args.model == 'DiffPool' else torch.nn.modules.loss.NLLLoss,
+        'criterion': model.PoolLoss if args.model in {'DiffPool', 'MinCutPool'} else torch.nn.modules.loss.NLLLoss,
         'optimizer': torch.optim.Adam,
         'optimizer__weight_decay': 1e-4,
         'callbacks__print_log__sink': skf_pbar.write,
