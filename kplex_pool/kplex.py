@@ -9,6 +9,7 @@ from kplex_pool.data import Cover, CustomDataset, DenseDataset
 from torch_geometric.utils import to_networkx, from_scipy_sparse_matrix
 from torch_geometric.data import Data
 
+import networkx as nx
 from networkx.algorithms.clique import make_clique_bipartite
 from networkx.algorithms.bipartite import biadjacency_matrix
 
@@ -39,6 +40,7 @@ class CliqueCover:
                     if d < assigned.setdefault(n, d):
                         B.remove_edge(n, c)
             
+            B.remove_nodes_from(list(filter(lambda n: n < 0, nx.isolates(B))))
             M = biadjacency_matrix(B, list(G), weight=None, format="coo")
             cover_index = from_scipy_sparse_matrix(M)[0].to(device)
             clusters = cover_index[1].max().item() + 1
