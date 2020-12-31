@@ -6,8 +6,158 @@ from kplex_pool.simplify import simplify as simplify_graph
 from kplex_pool.utils import hub_promotion
 from kplex_pool.data import Cover, CustomDataset, DenseDataset
 
+from torch_geometric.utils import to_networkx, from_scipy_sparse_matrix
+from torch_geometric.data import Data
+
+from networkx.algorithms.clique import make_clique_bipartite
+from networkx.algorithms.bipartite import biadjacency_matrix
+
 from tqdm import tqdm
 
+
+class CliqueCover:
+    """CliquePool implementation"""
+    
+    def __call__(self, edge_index, num_nodes=None, batch=None):
+        device = edge_index.device
+        
+        if num_nodes is None:
+            num_nodes = edge_index.max().item() + 1
+        
+        if batch is None:
+            G = to_networkx(Data(num_nodes=num_nodes, edge_index=edge_index),
+                            to_undirected=True, remove_self_loops=True)
+            B = make_clique_bipartite(G)
+            clique_sizes = list(sorted(filter(lambda n: n[0] < 0, B.degree),
+                                       key=lambda n: n[1],
+                                       reverse=True))
+            
+            assigned = {}
+            
+            for c, d in clique_sizes:
+                for n in B.neighbors(c):
+                    if d < assigned.setdefault(n, d):
+                        B.remove_edge(n, c)
+            
+            M = biadjacency_matrix(B, list(G), weight=None, format="coo")
+            cover_index = from_scipy_sparse_matrix(M)[0].to(device)
+            clusters = cover_index[1].max().item() + 1
+            
+            return cover_index, clusters, cover_index.new_zeros(clusters)
+        
+        count = batch.bincount(minlength=batch[-1] + 1)
+        out_index = []
+        out_batch = []
+        out_clusters = 0
+        min_index = 0
+        
+        for b, num_nodes in enumerate(count):
+            mask = batch[edge_index[0]] == b
+            cover_index, clusters, zeros = self(edge_index[:, mask] - min_index, num_nodes)
+            cover_index[0].add_(min_index)
+            cover_index[1].add_(out_clusters)
+            
+            out_index.append(cover_index)
+            out_batch.append(zeros.add_(b))
+            out_clusters += clusters
+            min_index += num_nodes
+        
+        return torch.cat(out_index, dim=1), out_clusters, torch.cat(out_batch, dim=0)
+    
+    def process(self, dataset,
+                edge_pool_op='add',
+                verbose=True):
+        """Compute the k-plex cover for a whole dataset of graphs and
+        post-process it.
+
+        Args:
+            dataset (torch_geometric.Dataset): A graph dataset.
+            edge_pool_op (str, optional): Edge-weights aggregation funciton
+                (`"add"`, `"mul"`,` "max"`, `"min"`, or `"mean"`). Defaults
+                to `"add"`.
+            verbose (bool, optional): Show a progress bar. Defaults to `True`.
+
+        Returns:
+            (CustomDataset, CustomDataset): The input dataset, augmented with
+                `"cover_index"` and `"num_clusters"` keys, and the coarsened
+                dataset (with no node features).
+        """
+        it = tqdm(dataset, desc="Processing dataset", leave=False) if verbose else dataset
+        in_list = []
+        out_list = []
+        
+        for data in it:
+            cover_index, clusters, _ = self(data.edge_index, data.num_nodes)
+            edge_index, weights = cover_pool_edge(cover_index, data.edge_index, data.edge_attr,
+                                                  data.num_nodes, clusters, pool=edge_pool_op)
+            
+            keys = dict(data.__iter__())
+            keys['num_nodes'] = data.num_nodes
+            in_list.append(Cover(cover_index=cover_index, num_clusters=clusters, **keys))
+            out_list.append(Cover(edge_index=edge_index, edge_attr=weights, num_nodes=clusters))
+        
+        return CustomDataset(in_list), CustomDataset(out_list)
+    
+    def get_representations(self, dataset, num_layers, verbose=True, *args, **kwargs):
+        """Build a hierarchy of graphs for each graph in a given dataset.
+
+        Args:
+            dataset (torch_geometric.Dataset): A graph dataset.
+            num_layers (int): Number of layers in the hierarchy.
+            verbose (bool, optional): Show a progress bar. Defaults to True.
+
+        Returns:
+            list: A list of `CustomDataset`s, where every dataset (apart from
+                the first one) contains at a given index the coarsened verison
+                of the graph at the same index in the previous dataset in the
+                list.
+        """
+        last_dataset = dataset
+        output = []
+        ls = range(num_layers)
+        
+        if verbose:
+            ls = tqdm(ls, desc="Creating Hierarchical Representations", leave=False)
+        
+        for _ in ls:
+            cover, last_dataset = self.process(last_dataset, *args, **kwargs)
+            output.append(cover)
+        
+        output.append(last_dataset)
+        
+        return output
+    
+    def get_cover_fun(self, num_layers, dataset=None, dense=False, *args, **kwargs):
+        """Build and return a function that, for a given dataset and a set of
+        indices, computes and returns the graph hierarchies at that indices.
+        If `dataset` is not `None`, the hiearachies are precomputed for that
+        dataset and the returned function will ignore the first parameter.
+
+        Args:
+            num_layers (int): Number of layers in the hierarchy.
+            dataset (torch_geometric.Dataset, optional): A graph dataset.
+                Defaults to None.
+            dense (int or bool, optional): The datasets returned by the
+                function will be dense starting from the given layer. `True`
+                acts as 0, while `False` as `len(ks) + 1`. Defaults to
+                `False`.
+
+        Returns:
+            callable: The graph-hierarchy function.
+        """
+        dense = int(not dense) * (num_layers + 1) if isinstance(dense, bool) else dense
+        
+        def cover_fun(ds, idx):
+            hierarchy = self.get_representations(ds[idx], num_layers, *args, **kwargs)
+            
+            return [DenseDataset(ds) if l >= dense else ds for l, ds in enumerate(hierarchy)]
+        
+        if dataset is None:
+            return lambda ds, idx: [c[:] for c in cover_fun(ds, idx)]
+        
+        cache = cover_fun(dataset, slice(None))
+        
+        return lambda _, idx: [ds[idx] for ds in cache]
 
 
 class KPlexCover:

@@ -13,9 +13,8 @@ from skorch.helper import predefined_split
 from skorch.dataset import Dataset
 
 from benchmark import model
-from kplex_pool import KPlexCover
+from kplex_pool import KPlexCover, CliqueCover
 from kplex_pool.utils import add_node_features
-from kplex_pool.data import NDPDataset, CustomDataset
 
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, ParameterGrid
 from sklearn.metrics import accuracy_score
@@ -43,9 +42,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cross-validate a given model.")
     parser.add_argument('-m', '--model', type=str, default='CoverPool',
                         help="Model to cross-validate (default: %(default)s).",
-                        choices=['BaseModel', 'CoverPool', 'DiffPool', 'TopKPool',
+                        choices=['BaseModel', 'KPlexPool', 'DiffPool', 'TopKPool',
                                  'SAGPool', 'EdgePool', 'Graclus', 'Louvain',
-                                 'Leiden', 'ECG', 'MinCutPool'])
+                                 'Leiden', 'ECG', 'MinCutPool', 'CliquePool'])
     parser.add_argument('-d', '--dataset', type=str, default='PROTEINS', metavar='DS',
                         help="Dataset on which the cross-validation is performed."
                              " Must be a dataset from the TU Dortmund collection"
@@ -155,45 +154,23 @@ if __name__ == "__main__":
         torch.cuda.manual_seed_all(42)
         device = 'cuda' 
     
-    if args.dataset == 'NDPDataset':
-        train, val, test = (NDPDataset('data/', 
-                                       split=key, 
-                                       easy=args.easy, 
-                                       small=args.small) 
-                            for key in ['train', 'val', 'test'])
-        train_stop = len(train)
-        val_stop = train_stop + len(val)
-        test_stop = val_stop + len(test)
-        train_idx = np.arange(train_stop)
-        val_idx = np.arange(train_stop, val_stop)
-        test_idx = np.arange(val_stop, test_stop)
+    dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
 
-        dataset = CustomDataset(list(train) + list(val) + list(test))
-        skf_pbar = tqdm([(train_idx, test_idx)], disable=True) 
-            
-        X = np.arange(len(dataset)).reshape((-1, 1))
-        y = dataset.data.y.numpy()
+    if dataset.data.x is None:
+        dataset = add_node_features(dataset)
+        
+    X = np.arange(len(dataset)).reshape((-1, 1))
+    y = dataset.data.y.numpy()
 
-        benchmark = True
-    else:
-        dataset = TUDataset(root='data/' + args.dataset, name=args.dataset)
-
-        if dataset.data.x is None:
-            dataset = add_node_features(dataset)
-            
-        X = np.arange(len(dataset)).reshape((-1, 1))
-        y = dataset.data.y.numpy()
-
-        skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=42)
-        skf_pbar = tqdm(list(skf.split(X, y)), leave=True, desc='Outer CV')
-        sss_split = 1./(args.folds - 1)
-        benchmark = False
+    skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=42)
+    skf_pbar = tqdm(list(skf.split(X, y)), leave=True, desc='Outer CV')
+    sss_split = 1./(args.folds - 1)
     
     results = []
     test_acc = []
 
     shared_params = {
-        'module': getattr(model, args.model), 
+        'module': model.CoverPool if args.model in {'KPlexPool', 'CliquePool'} else getattr(model, args.model),
         'module__dataset': dataset,
         'module__dropout': args.dropout,
         'module__num_inner_layers': args.inner_layers,
@@ -216,13 +193,22 @@ if __name__ == "__main__":
         'module__num_layers': list(range(args.min_layers, args.max_layers + 1))
     }
 
-    if args.model == 'CoverPool':
+    if args.model == 'KPlexPool':
         cover_fs = dict()
-        kplex_cover = KPlexCover()
+        cover = KPlexCover()
         param_grid.update(module__k=2**np.arange(np.log2(args.min_k), np.log2(args.max_k) + 1).astype(int))
         shared_params.update(
             module__dense=args.dense_from if args.dense else False,
             module__node_pool_op=args.node_pool_op
+        )
+    elif args.model == 'CliquePool':
+        cover_fs = dict()
+        cover = CliqueCover()
+        shared_params.update(
+            module__dense=args.dense_from if args.dense else False,
+            module__node_pool_op=args.node_pool_op,
+            module__cover_fun=cover.get_cover_fun(args.max_layers, dataset,
+                                                  args.dense_from if args.dense else False)
         )
     elif args.model == 'EdgePool':
         param_grid.update({
@@ -244,17 +230,13 @@ if __name__ == "__main__":
         test_X = X[test_idx]
         test_y = y[test_idx]
 
-        if benchmark:
-            val_X = X[val_idx]
-            val_y = y[val_idx]
-        else:
-            in_sss = StratifiedShuffleSplit(n_splits=1, test_size=sss_split, random_state=42)
-            train_idx, val_idx = next(in_sss.split(train_X, train_y))
+        in_sss = StratifiedShuffleSplit(n_splits=1, test_size=sss_split, random_state=42)
+        train_idx, val_idx = next(in_sss.split(train_X, train_y))
 
-            val_X = train_X[val_idx]
-            val_y = train_y[val_idx]
-            train_X = train_X[train_idx]
-            train_y = train_y[train_idx]
+        val_X = train_X[val_idx]
+        val_y = train_y[val_idx]
+        train_X = train_X[train_idx]
+        train_y = train_y[train_idx]
         
         valid_ds = Dataset(val_X, val_y)
         test_ds = Dataset(test_X, test_y)
@@ -269,7 +251,7 @@ if __name__ == "__main__":
         for params in gs_pbar:
             gs_pbar.set_postfix({k.split('__')[1]: v for k, v in params.items()})
 
-            if args.model == 'CoverPool':
+            if args.model == 'KPlexPool':
                 last_k = params.pop('module__k')
                 ks = [last_k]
 
@@ -280,11 +262,11 @@ if __name__ == "__main__":
                 ks = tuple(ks)
 
                 if ks not in cover_fs:
-                    cover_fs[ks] = kplex_cover.get_cover_fun(ks, dataset, 
-                                                             dense=args.dense_from if args.dense else False, 
-                                                             q=args.q, 
-                                                             edge_pool_op=args.edge_pool_op, 
-                                                             simplify=args.simplify)
+                    cover_fs[ks] = cover.get_cover_fun(ks, dataset,
+                                                       dense=args.dense_from if args.dense else False,
+                                                       q=args.q,
+                                                       edge_pool_op=args.edge_pool_op,
+                                                       simplify=args.simplify)
 
                 params['module__cover_fun'] = cover_fs[ks]
             
@@ -356,7 +338,7 @@ if __name__ == "__main__":
 
     results = pd.concat(results, sort=False)
 
-    if args.model == 'CoverPool':
+    if args.model in {'CliquePool', 'KPlexPool'}:
         results = results.drop('module__cover_fun', 1)  # Ugly fix
 
     results.to_pickle(args.to_pickle)

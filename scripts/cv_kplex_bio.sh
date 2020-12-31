@@ -1,6 +1,6 @@
 #!/bin/bash
 
-POOL=${POOL}
+POOL=KPlexPool
 
 for KF in 1.0 0.5; do
    DS=ENZYMES

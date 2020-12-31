@@ -322,6 +322,7 @@ class CoverPool(BaseModel):
 
         return data
 
+
 # Other models used for comparison, slightly modified from
 # https://github.com/rusty1s/pytorch_geometric/tree/master/benchmark/kernel
 

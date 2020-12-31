@@ -1,6 +1,6 @@
 #!/bin/bash
 
-POOL=CoverPool
+POOL=KPlexPool
 ARGS="--model=${POOL} --max_layers=2 --max_k=1"
 
 for DS in REDDIT-BINARY REDDIT-MULTI-5K; do
