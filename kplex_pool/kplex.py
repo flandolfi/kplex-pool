@@ -35,7 +35,7 @@ class CliqueCover:
             assigned = {}
             
             for c, d in clique_sizes:
-                for n in B.neighbors(c):
+                for n in list(B.neighbors(c)):
                     if d < assigned.setdefault(n, d):
                         B.remove_edge(n, c)
             
