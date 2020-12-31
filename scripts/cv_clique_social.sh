@@ -3,7 +3,7 @@
 POOL=CliquePool
 ARGS="--model=${POOL} --max_layers=2"
 
-for DS in COLLAB REDDIT-BINARY REDDIT-MULTI-5K; do
+for DS in REDDIT-BINARY REDDIT-MULTI-5K COLLAB; do
    python benchmark/cv.py $ARGS --dataset=$DS --to_pickle=results/${POOL}_${DS}.pickle --batch_size=1000
 done
 
