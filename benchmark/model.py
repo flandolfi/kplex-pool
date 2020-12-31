@@ -295,7 +295,7 @@ class CoverPool(BaseModel):
         self.hierarchy = self.cover_fun(self.sparse_dataset, index.view(-1).to(self.device))
         hierarchy = []
 
-        for layer, data in enumerate(self.hierarchy[:len(self.blocks) - 1]):
+        for layer, data in enumerate(self.hierarchy[:self.num_layers]):
             if layer >= self.dense:
                 hierarchy.append(data.to(self.device))
             else:
