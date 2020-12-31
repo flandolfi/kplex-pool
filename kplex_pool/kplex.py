@@ -41,6 +41,9 @@ class CliqueCover:
                         B.remove_edge(n, c)
             
             B.remove_nodes_from(list(filter(lambda n: n < 0, nx.isolates(B))))
+            map = {n: -i for i, n in enumerate(filter(lambda n: n < 0, B), start=1)}
+            B = nx.relabel_nodes(B, map, copy=False)
+            
             M = biadjacency_matrix(B, list(G), weight=None, format="coo")
             cover_index = from_scipy_sparse_matrix(M)[0].to(device)
             clusters = cover_index[1].max().item() + 1
