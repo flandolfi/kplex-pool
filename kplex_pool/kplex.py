@@ -119,7 +119,7 @@ class CliqueCover:
         """
         last_dataset = dataset
         output = []
-        ls = range(num_layers)
+        ls = range(num_layers - 1)
         
         if verbose:
             ls = tqdm(ls, desc="Creating Hierarchical Representations", leave=False)
@@ -150,7 +150,7 @@ class CliqueCover:
         Returns:
             callable: The graph-hierarchy function.
         """
-        dense = int(not dense) * (num_layers + 1) if isinstance(dense, bool) else dense
+        dense = int(not dense) * num_layers if isinstance(dense, bool) else dense
         
         def cover_fun(ds, idx):
             hierarchy = self.get_representations(ds[idx], num_layers, *args, **kwargs)
