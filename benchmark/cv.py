@@ -338,7 +338,7 @@ if __name__ == "__main__":
 
     results = pd.concat(results, sort=False)
 
-    if args.model in {'CliquePool', 'KPlexPool'}:
+    if args.model == 'KPlexPool':
         results = results.drop('module__cover_fun', 1)  # Ugly fix
 
     results.to_pickle(args.to_pickle)
