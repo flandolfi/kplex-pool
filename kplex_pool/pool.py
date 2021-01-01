@@ -57,14 +57,7 @@ def cover_pool_node(cover_index, x, num_clusters=None, pool='add', dense=False, 
     
     xs = x.index_select(0, cover_index[0])
     pool_op = getattr(torch_scatter, "scatter_{}".format(pool))
-    opts = {}
-
-    if pool == 'min':
-        opts['fill_value'] = xs.max().item() 
-    elif pool == 'max':
-        opts['fill_value'] = xs.min().item()
-
-    out = pool_op(xs, cover_index[1], dim=0, dim_size=num_clusters, **opts)
+    out = pool_op(xs, cover_index[1], dim=0, dim_size=num_clusters)
 
     if isinstance(out, tuple):
         out = out[0]
