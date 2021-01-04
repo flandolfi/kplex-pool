@@ -46,7 +46,7 @@ class Block(torch.nn.Module):
             dense form. Defaults to `False`.
     """
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, 
-                 mode="cat", graph_sage=False, dense=False):
+                 mode="cat", graph_sage=False, dense=False, activate=True):
         super(Block, self).__init__()
 
         if dense:
@@ -57,6 +57,7 @@ class Block(torch.nn.Module):
         self.mode = mode
         self.dense = dense
         self.graph_sage = graph_sage
+        self.activate = activate
         self.convs = ModuleList([
             module(in_channels if l == 0 else hidden_channels, 
                    hidden_channels if mode or l < num_layers - 1 else out_channels) 
@@ -96,11 +97,14 @@ class Block(torch.nn.Module):
             xs.append(x)
 
         if self.mode:
-            x = F.relu(self.lin(self.jump(xs)))
+            x = self.lin(self.jump(xs))
 
             if self.dense and data.mask is not None:
                 x = x * data.mask.unsqueeze(-1).type(x.dtype)
-        
+            
+            if self.activate:
+                x = F.relu(x)
+            
         return x
 
 
@@ -355,7 +359,7 @@ class DiffPool(BaseModel):
         for layer, ratio in enumerate(self.ratios):
             num_nodes = ceil(ratio * float(num_nodes))
             self.pool_blocks.append(Block(self.dataset.num_features if layer == 0 else self.hidden, self.hidden, num_nodes, 
-                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, True))
+                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, True, False))
 
     def reset_parameters(self):
         super(DiffPool, self).reset_parameters()
@@ -369,9 +373,12 @@ class DiffPool(BaseModel):
 
         return data
     
+    def compute_dense_assignment(self, data, layer):
+        return self.pool_blocks[layer](data)
+    
     def pool(self, data, layer):
         data.x, data.old_x = data.old_x, data.x
-        s = self.pool_blocks[layer - 1](data)
+        s = self.compute_dense_assignment(data, layer - 1)
         data.x, data.adj, link_loss, ent_loss = self.loss_function(data.old_x, data.adj, s, data.mask)
         data.old_x = data.x
         data.mask = None
@@ -393,6 +400,16 @@ class MinCutPool(DiffPool):
     def __init__(self, ratio=0.25, **kwargs):
         super(MinCutPool, self).__init__(ratio=ratio, **kwargs)
         self.loss_function = dense_mincut_pool
+
+        num_nodes = self.dataset.max_nodes
+        self.pool_blocks = torch.nn.ModuleList()
+
+        for layer, ratio in enumerate(self.ratios):
+            num_nodes = ceil(ratio * float(num_nodes))
+            self.pool_blocks.append(Linear(self.dataset.num_features if layer == 0 else self.hidden, self.hidden))
+    
+    def compute_dense_assignment(self, data, layer):
+        return self.pool_blocks[layer](data.x)
 
 
 class PoolLoss(torch.nn.Module):

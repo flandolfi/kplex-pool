@@ -1,6 +1,6 @@
 #!/bin/bash
 
-POOL=DiffPool
+POOL=MinCutPool
 
 for DS in ENZYMES NCI1 IMDB-BINARY IMDB-MULTI; do
     python benchmark/cv.py --model=$POOL --dataset=$DS --to_pickle=results/${POOL}_${DS}.pickle
