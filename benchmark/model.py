@@ -46,7 +46,7 @@ class Block(torch.nn.Module):
             dense form. Defaults to `False`.
     """
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, 
-                 mode="cat", graph_sage=False, dense=False, activate=True):
+                 mode="cat", graph_sage=False, dense=False):
         super(Block, self).__init__()
 
         if dense:
@@ -57,7 +57,6 @@ class Block(torch.nn.Module):
         self.mode = mode
         self.dense = dense
         self.graph_sage = graph_sage
-        self.activate = activate
         self.convs = ModuleList([
             module(in_channels if l == 0 else hidden_channels, 
                    hidden_channels if mode or l < num_layers - 1 else out_channels) 
@@ -97,13 +96,10 @@ class Block(torch.nn.Module):
             xs.append(x)
 
         if self.mode:
-            x = self.lin(self.jump(xs))
+            x = F.relu(self.lin(self.jump(xs)))
 
             if self.dense and data.mask is not None:
                 x = x * data.mask.unsqueeze(-1).type(x.dtype)
-            
-            if self.activate:
-                x = F.relu(x)
             
         return x
 
@@ -359,7 +355,7 @@ class DiffPool(BaseModel):
         for layer, ratio in enumerate(self.ratios):
             num_nodes = ceil(ratio * float(num_nodes))
             self.pool_blocks.append(Block(self.dataset.num_features if layer == 0 else self.hidden, self.hidden, num_nodes, 
-                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, True, False))
+                                          self.num_inner_layers, self.jumping_knowledge, self.graph_sage, True))
 
     def reset_parameters(self):
         super(DiffPool, self).reset_parameters()
