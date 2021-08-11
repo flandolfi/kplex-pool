@@ -1,22 +1,29 @@
 # K-Plex Cover Pooling for Graph Neural Networks #
 
 This repository contains the implementation and the experimental setup used in 
-[*"K-Plex Cover Pooling for Graph Neural Networks"*](https://openreview.net/forum?id=PFdGijb9sjx), accepted as a workshop paper at the [1st Workshop on Learning Meets Combinatorial Algorithms (LMCA)](https://sites.google.com/view/lmca2020) @ NeurIPS 2020.
+*"K-Plex Cover Pooling for Graph Neural Networks"* ([workshop](https://openreview.net/forum?id=PFdGijb9sjx), [paper](https://link.springer.com/article/10.1007/s10618-021-00779-z)), accepted as a workshop paper at the [1st Workshop on Learning Meets Combinatorial Algorithms (LMCA) @ NeurIPS 2020](https://sites.google.com/view/lmca2020), and later as a journal article in [Data Mining and Knowledge Discovery](https://www.springer.com/journal/10618) for the [Special Issue of the Journal Track of ECML PKDD 2021](https://2021.ecmlpkdd.org/).
 
 ## Abstract ##
 
-We introduce a novel pooling technique which borrows from classical results in graph theory that is non-parametric and 
-generalizes well to graphs of different nature and connectivity pattern. Our pooling method, named KPlexPool, builds on 
-the concepts of graph covers and *k*-plexes, i.e. pseudo-cliques where each node can miss up to *k* links. The 
-experimental evaluation on benchmarks on molecular and social graph classification shows that KPlexPool achieves state 
-of the art performances, supporting the intuition that well-founded graph-theoretic approaches can be effectively 
-integrated in learning models for graphs. 
+Graph pooling methods provide mechanisms for structure reduction that are intended to ease the diffusion of context between nodes further in the graph, and that typically leverage community discovery mechanisms or node and edge pruning heuristics. In this paper, we introduce a novel pooling technique which borrows from classical results in graph theory that is non-parametric and generalizes well to graphs of different nature and connectivity patterns. Our pooling method, named KPlexPool, builds on the concepts of graph covers and *k*-plexes, i.e. pseudo-cliques where each node can miss up to *k* links. The experimental evaluation on benchmarks on molecular and social graph classification shows that KPlexPool achieves state of the art performances against both parametric and non-parametric pooling methods in the literature, despite generating pooled graphs based solely on topological information.
 
 ## Citation ##
 
 ```bibtex
-@inproceedings{
-    bacciu2020kplex,
+@article{bacciu_k-plex_2021,
+    title = {K-plex cover pooling for graph neural networks},
+    author = {Bacciu, Davide and Conte, Alessio and Grossi, Roberto and Landolfi, Francesco and Marino, Andrea},
+    journal = {Data Mining and Knowledge Discovery},
+    year = {2021},
+    volume = {35},
+    number = {5},
+    pages = {1--21},
+    issn = {1573-756X},
+    url = {https://doi.org/10.1007/s10618-021-00779-z},
+    doi = {10.1007/s10618-021-00779-z},
+}
+
+@inproceedings{bacciu_k-plex_2020,
     title={K-plex Cover Pooling for Graph Neural Networks},
     author={Bacciu, Davide and Conte, Alessio and Grossi, Roberto and Landolfi, Francesco and Marino, Andrea},
     booktitle={1st Workshop on Learning Meets Combinatorial Algorithms at NeurIPS 2020},
