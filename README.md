@@ -24,11 +24,11 @@ Graph pooling methods provide mechanisms for structure reduction that are intend
 }
 
 @inproceedings{bacciu_k-plex_2020,
-    title={K-plex Cover Pooling for Graph Neural Networks},
-    author={Bacciu, Davide and Conte, Alessio and Grossi, Roberto and Landolfi, Francesco and Marino, Andrea},
-    booktitle={1st Workshop on Learning Meets Combinatorial Algorithms at NeurIPS 2020},
-    year={2020},
-    url={https://openreview.net/forum?id=PFdGijb9sjx}
+    title = {K-plex Cover Pooling for Graph Neural Networks},
+    author = {Bacciu, Davide and Conte, Alessio and Grossi, Roberto and Landolfi, Francesco and Marino, Andrea},
+    booktitle = {1st Workshop on Learning Meets Combinatorial Algorithms at NeurIPS 2020},
+    year = {2020},
+    url = {https://openreview.net/forum?id=PFdGijb9sjx},
 }
 ```
 
